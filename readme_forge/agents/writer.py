@@ -204,7 +204,7 @@ class WriterAgent:
             f"Project Persona: {analysis.get('project_persona')}\n"
             f"Problem Statement: {analysis.get('problem_statement', 'Not specified')}\n"
             f"Solution Narrative: {analysis.get('solution_narrative', 'Not specified')}\n"
-            f"Component Flow Connections: {analysis.get('connections')}\n\n"
+            f"Component Flow Connections:\n{self._format_connections(analysis.get('connections', []))}\n\n"
         )
         
         if features_context:
@@ -224,6 +224,18 @@ class WriterAgent:
 
         readme_markdown = self.llm_client.generate(system_prompt, user_prompt)
         return readme_markdown
+
+    def _format_connections(self, connections):
+        """Format connections list as readable text for the prompt."""
+        if not connections:
+            return "No connection data available."
+        lines = []
+        for c in connections:
+            from_node = c.get('from', 'Unknown')
+            to_node = c.get('to', 'Unknown')
+            relationship = c.get('relationship', '')
+            lines.append(f"- {from_node} → {to_node}: {relationship}")
+        return "\n".join(lines)
 
     def generate_showroom_html(self, readme_markdown, analysis):
         """Generates a premium glassmorphic Showroom HTML file that renders the README dynamically and includes rich visual tabs/animations."""

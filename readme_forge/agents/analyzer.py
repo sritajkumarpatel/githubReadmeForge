@@ -92,6 +92,11 @@ class AnalyzerAgent:
             "- cli_commands: Extract from argparse, click, commander, or similar CLI framework usage. Leave as empty array if not applicable.\n"
             "- problem_statement: Infer the pain point from what the tool does. Think about why someone would need this.\n"
             "- connections: Map the actual architectural flow between real components/files, not generic patterns.\n"
+            "\n"
+            "EXTRACT SPECIFICS - DO NOT USE GENERIC DESCRIPTIONS:\n"
+            "- tech_stack: List SPECIFIC frameworks, libraries, and tools (e.g., 'FastMCP', 'UV', 'Pydantic', 'MCP Inspector', 'Uvicorn'). Do NOT just say 'Python' when the project uses 'FastMCP' or 'Streamable HTTP'.\n"
+            "- project_persona: Be specific about what the project actually does. 'A learning project for MCP servers' is better than 'A software application'.\n"
+            "- key_features: Describe what the specific code does. 'Weather data fetching via MCP protocol' is better than 'Data retrieval feature'.\n"
         )
 
         # Prepare user prompt with codebase data
