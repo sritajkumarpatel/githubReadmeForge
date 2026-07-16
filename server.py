@@ -13,6 +13,7 @@ from readme_forge.llm import LLMClient
 from readme_forge.agents.reader import ReaderAgent
 from readme_forge.agents.analyzer import AnalyzerAgent
 from readme_forge.agents.writer import WriterAgent
+from readme_forge.agents.contracts import normalize_analysis
 
 class APIRequestHandler(BaseHTTPRequestHandler):
     def end_headers(self):
@@ -258,6 +259,18 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         if not scan_results or not analysis:
             self._send_json({"success": False, "error": "Analysis context is missing."}, 400)
             return
+
+        if not isinstance(scan_results, dict) or not isinstance(analysis, dict):
+            self._send_json({"success": False, "error": "Analysis context must be a JSON object."}, 400)
+            return
+
+        # Browser clients can submit a saved analysis payload directly. Normalize
+        # it here too, so the Writer receives the same contract as the CLI flow.
+        analysis = normalize_analysis(
+            analysis,
+            scan_results,
+            analysis_complete=bool(analysis.get("analysis_complete", True)),
+        )
 
         # Backend Guardrails: check for off-topic requests (e.g. asking to write separate coding programs)
         if custom_answers:

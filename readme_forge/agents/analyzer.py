@@ -1,5 +1,6 @@
 import json
 from readme_forge.llm import LLMClient
+from readme_forge.agents.contracts import normalize_analysis
 
 
 class AnalyzerAgent:
@@ -23,6 +24,11 @@ class AnalyzerAgent:
             "  \"project_type\": \"One of: learning, poc, library, application, cli, api, minimal. Choose the most accurate type.\",\n"
             "  \"project_type_reason\": \"Brief explanation of why this type was selected.\",\n"
             "  \"project_maturity\": \"One of: production, development, poc, unknown. Be honest about the project's current state.\",\n"
+            "  \"classification\": {\n"
+            "    \"primary_intent\": \"learning, poc, library, application, cli, api, or minimal\",\n"
+            "    \"delivery_surfaces\": [\"Any applicable values from: package, cli, api, ui\"],\n"
+            "    \"confidence\": 0.0\n"
+            "  },\n"
             "  \"tech_stack\": [\"List of specific languages, frameworks, and major dependencies detected\"],\n"
             "  \"project_persona\": \"A clear, compelling 1-2 sentence description of what this project does and who it is for.\",\n"
             "  \"problem_statement\": \"What specific pain point or problem does this project solve? Write 2-3 sentences describing the problem from the user's perspective.\",\n"
@@ -122,7 +128,7 @@ class AnalyzerAgent:
             "- unknown: Unable to determine maturity from available information.\n"
             "\n"
             "IMPORTANT RULES:\n"
-            "- key_features: Extract at least 3-5 real features from the code. Do NOT invent features that aren't in the codebase.\n"
+            "- key_features: Extract every meaningful feature supported by the code. It is valid to return fewer than three or an empty array; never invent features to meet a quota.\n"
             "- api_endpoints: Only include if the project has HTTP/API routes. Leave as empty array if not applicable.\n"
             "- config_variables: Extract from .env files, environment variable reads in code (os.getenv, process.env), and CLI argument parsers.\n"
             "- cli_commands: Extract from argparse, click, commander, or similar CLI framework usage. Leave as empty array if not applicable.\n"
@@ -211,7 +217,11 @@ class AnalyzerAgent:
         if external_apis_text:
             user_prompt += f"{external_apis_text}\n\n"
 
-        user_prompt += "Please analyze these resources and return the comprehensive JSON analysis."
+        user_prompt += (
+            "Please analyze these resources and return the comprehensive JSON analysis. "
+            "A repository may expose multiple delivery surfaces (for example a package plus CLI plus API). "
+            "Report all applicable surfaces rather than forcing them into one label."
+        )
 
         raw_response = self.llm_client.generate(
             system_prompt=system_prompt,
@@ -231,34 +241,9 @@ class AnalyzerAgent:
 
         try:
             analysis_data = json.loads(clean_response)
-            return analysis_data
+            return normalize_analysis(analysis_data, scan_results)
         except Exception as e:
             print(f"[Analyzer] Warning: Failed to parse LLM analysis JSON: {e}")
-            return {
-                "project_name": "Project",
-                "project_type": "application",
-                "project_type_reason": "Default classification based on available information.",
-                "project_maturity": "unknown",
-                "tech_stack": ["Detected from files"],
-                "project_persona": "A software codebase project",
-                "problem_statement": "This project addresses a specific developer need.",
-                "solution_narrative": "It provides a solution through its implementation.",
-                "key_features": [],
-                "api_endpoints": [],
-                "config_variables": [],
-                "cli_commands": [],
-                "data_models": [],
-                "installation_commands": [],
-                "external_services": [],
-                "test_coverage": {"has_tests": False, "framework": "unknown", "test_count": 0, "description": ""},
-                "architecture_layers": [],
-                "improvements": [
-                    {
-                        "id": "1",
-                        "title": "README enhancement required",
-                        "description": "Standardize README format and structure, add examples and architecture diagrams.",
-                        "type": "General",
-                    }
-                ],
-                "connections": [],
-            }
+            # Do not fabricate a generic product description when analysis fails.
+            # The normalizer still supplies deterministic repository classification.
+            return normalize_analysis({}, scan_results, analysis_complete=False)

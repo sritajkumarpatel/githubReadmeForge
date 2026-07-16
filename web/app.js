@@ -474,7 +474,7 @@ function displayGeneratedOutputs(readme) {
                 try {
                     const id = 'mermaid-' + Math.random().toString(36).substr(2, 9);
                     const cleanText = sanitizeMermaidText(div.textContent.trim());
-                    mermaid.render(id, cleanText).then(svg => {
+                    mermaid.render(id, cleanText).then(({ svg }) => {
                         div.innerHTML = svg;
                     }).catch(err => {
                         console.warn("Mermaid render failed, showing code:", err);
@@ -603,7 +603,7 @@ function computeAndRenderDiff(newReadme) {
                     divs.forEach(div => {
                         const id = 'mermaid-diff-' + Math.random().toString(36).substr(2, 9);
                         const cleanText = sanitizeMermaidText(div.textContent.trim());
-                        mermaid.render(id, cleanText).then(svg => {
+                        mermaid.render(id, cleanText).then(({ svg }) => {
                             div.innerHTML = svg;
                         }).catch(() => {
                             div.innerHTML = '<pre>' + div.textContent.trim() + '</pre>';

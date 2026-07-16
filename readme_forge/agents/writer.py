@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from readme_forge.llm import LLMClient
+from readme_forge.agents.contracts import build_documentation_plan
 
 
 class WriterAgent:
@@ -158,7 +159,14 @@ class WriterAgent:
                 "- Skip detailed features, architecture, and multiple sections\n"
                 "- Use direct, no-frills formatting\n"
             )
-        else:  # application / poc
+        elif project_type == "poc":
+            project_type_instruction = (
+                "PROJECT TYPE: PROOF OF CONCEPT\n"
+                "- Describe the demonstrated capability and current limitations honestly\n"
+                "- Keep problem and solution sections brief\n"
+                "- Do not imply production readiness, deployment guarantees, or complete APIs\n"
+            )
+        else:  # application
             project_type_instruction = (
                 "PROJECT TYPE: FULL APPLICATION\n"
                 "- Comprehensive documentation with all sections\n"
@@ -227,6 +235,14 @@ class WriterAgent:
                 f"Coverage: {test_cov.get('description', '')}"
             )
 
+        documentation_plan = analysis.get("documentation_plan")
+        if not isinstance(documentation_plan, dict):
+            documentation_plan = build_documentation_plan(analysis)
+        planned_sections = documentation_plan.get("sections", [])
+        plan_text = ", ".join(planned_sections) if planned_sections else "title, overview"
+        evidence_only = bool(documentation_plan.get("evidence_only"))
+        architecture_diagram = bool(documentation_plan.get("include_architecture_diagram"))
+
         system_prompt = (
             "You are an expert technical writer and product storyteller.\n"
             "Your task is to write a HIGHLY POLISHED, PROFESSIONAL, NARRATIVE-DRIVEN README.md for a project codebase.\n\n"
@@ -235,6 +251,11 @@ class WriterAgent:
             "- A great README tells a STORY: Problem → Solution → How It Works → Features → Get Started.\n"
             "- Every section must have DEPTH and SPECIFICITY. No generic filler text.\n"
             "- Extract REAL details from the codebase — real file names, real commands, real config variables.\n\n"
+            "FACTUALITY RULES:\n"
+            "- Treat the supplied documentation plan and facts as authoritative.\n"
+            "- Do not invent commands, flags, endpoints, environment variables, badges, versions, owners, or test results.\n"
+            "- Omit any section that is not in the documentation plan.\n"
+            "- If facts are incomplete, write a concise evidence-only README rather than plausible filler.\n\n"
             f"Project Type Context:\n{project_type_instruction}\n\n"
             f"Formatting Theme instructions:\n{style_instruction}\n\n"
             f"Language settings:\n{lang_instruction}\n\n"
@@ -265,8 +286,8 @@ class WriterAgent:
             "   - Use a small markdown table: | Term | Definition |\n"
             "   - Pull real names from the codebase: class names, protocol names, pipeline stage names.\n"
             "   - SKIP this section for cli, minimal, learning, poc project types.\n\n"
-            "6. **How It Works**:\n"
-            "   a) **Architecture Diagram** (MANDATORY — use this EXACT Mermaid syntax):\n"
+            "6. **How It Works** (ONLY if included in the documentation plan):\n"
+            "   a) **Architecture Diagram** (ONLY when the plan enables it — use this EXACT Mermaid syntax):\n"
             "      ```mermaid\n"
             "      flowchart TD\n"
             "          A[ComponentName] --> B[ComponentName]\n"
@@ -324,6 +345,10 @@ class WriterAgent:
             f"Here is the context of the codebase:\n"
             f"Path: {scan_results.get('path')}\n"
             f"Project Type: {project_type} - {project_type_reason}\n"
+            f"Documentation plan (include ONLY these sections): {plan_text}\n"
+            f"Architecture diagram enabled: {architecture_diagram}\n"
+            f"Evidence-only mode: {evidence_only}\n"
+            f"Classification: {analysis.get('classification', {})}\n"
             f"File Tree Structure:\n{scan_results.get('tree')}\n\n"
             f"Tech Stack analyzed: {analysis.get('tech_stack')}\n"
             f"Project Persona: {analysis.get('project_persona')}\n"
