@@ -80,8 +80,35 @@ class APIRequestHandler(BaseHTTPRequestHandler):
             self._handle_analyze()
         elif clean_path == "/api/generate":
             self._handle_generate()
+        elif clean_path == "/api/models":
+            self._handle_models()
         else:
             self.send_error(404, "API Endpoint Not Found")
+
+    def _handle_models(self):
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            req_body = json.loads(post_data) if post_data else {}
+        except Exception as e:
+            self._send_json({"success": False, "error": f"Invalid JSON body: {e}"}, 400)
+            return
+
+        provider = req_body.get("provider", "")
+        api_key = req_body.get("api_key")
+
+        if not api_key or provider == "mock":
+            self._send_json({"success": True, "models": []})
+            return
+
+        llm_client = LLMClient(provider=provider, api_key=api_key)
+        models = llm_client.get_available_models()
+
+        if isinstance(models, dict) and "error" in models:
+            self._send_json({"success": False, "error": models["error"]}, 400)
+            return
+
+        self._send_json({"success": True, "models": models})
 
     def _handle_analyze(self):
         try:
@@ -96,6 +123,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         provider = req_body.get("provider", "mock")
         model = req_body.get("model")
         api_key = req_body.get("api_key")
+        base_url = req_body.get("base_url")
 
         if not target_path:
             self._send_json({"success": False, "error": "Repository path or URL is required."}, 400)
@@ -121,7 +149,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
             scan_results = reader.scan_codebase()
 
             # Instantiate LLM client and analyze
-            llm_client = LLMClient(provider=provider, model=model, api_key=api_key)
+            llm_client = LLMClient(provider=provider, model=model, api_key=api_key, base_url=base_url)
             analyzer = AnalyzerAgent(llm_client)
             analysis = analyzer.analyze(scan_results)
 
@@ -164,6 +192,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         provider = req_body.get("provider", "mock")
         model = req_body.get("model")
         api_key = req_body.get("api_key")
+        base_url = req_body.get("base_url")
         custom_answers = req_body.get("custom_answers")
         readme_style = req_body.get("style", "visual_rich")
         lang = req_body.get("lang", "en")
@@ -200,7 +229,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
                 os.environ[env_var] = api_key
 
         try:
-            llm_client = LLMClient(provider=provider, model=model, api_key=api_key)
+            llm_client = LLMClient(provider=provider, model=model, api_key=api_key, base_url=base_url)
             writer = WriterAgent(llm_client)
             
             # Determine output_dir

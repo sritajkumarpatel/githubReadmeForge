@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>githubReadmeForge - Intelligent README Architect</title>
     <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <!-- CSS link -->
     <link rel="stylesheet" href="styles.css">
     <!-- Marked Markdown Parser CDN -->
@@ -44,17 +44,34 @@
                     
                     <div class="features-grid">
                         <div class="feature-card">
-                            <span class="feat-icon">📊</span>
+                            <svg class="feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 3v18h18"/>
+                                <path d="M18 17V9"/>
+                                <path d="M13 17V5"/>
+                                <path d="M8 17v-3"/>
+                            </svg>
                             <h3>Automated Diagnostics</h3>
                             <p>Compares your code against your README to score completeness and locate documentation gaps.</p>
                         </div>
                         <div class="feature-card">
-                            <span class="feat-icon">🧬</span>
-                            <h3>Visual Flow Diagrams</h3>
+                            <svg class="feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="3"/>
+                                <path d="M12 2v4"/>
+                                <path d="M12 18v4"/>
+                                <path d="M4.93 4.93l2.83 2.83"/>
+                                <path d="M16.24 16.24l2.83 2.83"/>
+                                <path d="M2 12h4"/>
+                                <path d="M18 12h4"/>
+                            </svg>
+                            <h3>Visual Architecture Maps</h3>
                             <p>Deduces technical architecture and injects live Mermaid.js system structure flows.</p>
                         </div>
                         <div class="feature-card">
-                            <span class="feat-icon">💡</span>
+                            <svg class="feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                <path d="M3 9h18"/>
+                                <path d="M9 21V9"/>
+                            </svg>
                             <h3>Showroom Page Generator</h3>
                             <p>Builds a stunning, standalone glassmorphic companion site perfect for GitHub Pages.</p>
                         </div>
@@ -71,7 +88,7 @@
                 <div class="config-wrapper">
                     <h2>Select AI Orchestrator Backend</h2>
                     <p class="panel-desc">Configure your LLM model details. Credentials remain entirely in memory and are never persisted.</p>
-                    
+
                     <div class="form-group">
                         <label for="provider-select">LLM Provider</label>
                         <select id="provider-select" onchange="handleProviderChange()">
@@ -80,22 +97,37 @@
                             <option value="openai">OpenAI</option>
                             <option value="claude">Anthropic Claude</option>
                             <option value="ollama">Ollama (Local Offline LLM)</option>
+                            <option value="opencode">OpenCode (AI Coding Agent)</option>
                         </select>
                     </div>
 
                     <div class="form-group" id="api-key-group" style="display: none;">
                         <label for="api-key-input">API Key</label>
-                        <input type="password" id="api-key-input" placeholder="Enter your provider API Key">
+                        <div class="input-with-btn">
+                            <input type="password" id="api-key-input" placeholder="Enter your provider API Key" onchange="fetchModels()">
+                            <button class="btn btn-secondary" onclick="fetchModels()" type="button">Fetch Models</button>
+                        </div>
                     </div>
 
                     <div class="form-group" id="model-group" style="display: none;">
-                        <label for="model-input">Model Name</label>
-                        <input type="text" id="model-input" placeholder="e.g. gemini-1.5-flash, gpt-4o-mini">
+                        <label for="model-select">Model</label>
+                        <select id="model-select">
+                            <option value="">Select a model...</option>
+                        </select>
+                        <div id="model-loading" class="model-loading" style="display: none;">
+                            <span class="spinner-small"></span> Fetching models...
+                        </div>
                     </div>
 
                     <div class="form-group" id="ollama-host-group" style="display: none;">
                         <label for="ollama-host-input">Ollama Server Host</label>
                         <input type="text" id="ollama-host-input" value="http://localhost:11434">
+                    </div>
+
+                    <div class="form-group" id="opencode-host-group" style="display: none;">
+                        <label for="opencode-host-input">OpenCode Server Host</label>
+                        <input type="text" id="opencode-host-input" value="http://127.0.0.1:4096">
+                        <small style="color: var(--text-secondary); display: block; margin-top: 4px;">Run <code>opencode serve</code> first to start the API server</small>
                     </div>
 
                     <div class="action-row">

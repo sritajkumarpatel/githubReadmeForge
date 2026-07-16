@@ -22,6 +22,9 @@ class LLMClient:
         elif self.provider == "ollama":
             self.base_url = self.base_url or os.getenv("OLLAMA_HOST", "http://localhost:11434")
             self.model = self.model or "llama3"
+        elif self.provider == "opencode":
+            self.base_url = self.base_url or os.getenv("OPENCODE_HOST", "http://127.0.0.1:4096")
+            self.model = self.model or "anthropic/claude-3-5-sonnet-20241022"
         else:
             self.provider = "mock"
             self.model = "mock-model"
@@ -29,10 +32,60 @@ class LLMClient:
     def is_configured(self):
         if self.provider == "mock":
             return True
-        if self.provider == "ollama":
-            # Just check if we have a base_url, we'll try to reach it during call
+        if self.provider == "ollama" or self.provider == "opencode":
             return bool(self.base_url)
         return bool(self.api_key)
+
+    def get_available_models(self):
+        """Fetch available models for the provider."""
+        if self.provider == "openai":
+            try:
+                from openai import OpenAI
+                client = OpenAI(api_key=self.api_key)
+                models = client.models.list()
+                return [m.id for m in models.data if not m.id.startswith('gpt-3.5-turbo-0301')]
+            except Exception as e:
+                return {"error": str(e)}
+        elif self.provider == "claude":
+            try:
+                from anthropic import Anthropic
+                client = Anthropic(api_key=self.api_key)
+                return ["claude-3-5-sonnet-20240620", "claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"]
+            except Exception as e:
+                return {"error": str(e)}
+        elif self.provider == "gemini":
+            try:
+                import google.generativeai as genai
+                genai.configure(api_key=self.api_key)
+                return [m.name for m in genai.list_models()]
+            except Exception as e:
+                return {"error": str(e)}
+        elif self.provider == "ollama":
+            try:
+                import requests
+                response = requests.get(f"{self.base_url}/api/tags")
+                if response.status_code == 200:
+                    data = response.json()
+                    return [m["name"] for m in data.get("models", [])]
+                return {"error": "Failed to fetch models"}
+            except Exception as e:
+                return {"error": str(e)}
+        elif self.provider == "opencode":
+            try:
+                import requests
+                response = requests.get(f"{self.base_url}/config/providers", timeout=5)
+                if response.status_code == 200:
+                    data = response.json()
+                    models = []
+                    for provider_id, provider_data in data.get("providers", {}).items():
+                        if "models" in provider_data:
+                            for model_id in provider_data["models"]:
+                                models.append(f"{provider_id}/{model_id}")
+                    return models if models else ["claude-3-5-sonnet-20241022"]
+                return {"error": "Failed to fetch models"}
+            except Exception as e:
+                return {"error": str(e)}
+        return []
 
     def generate(self, system_prompt, user_prompt, response_format_json=False):
         """Generates text from the LLM, with support for JSON response format if supported/requested."""
@@ -48,10 +101,10 @@ class LLMClient:
                 return self._generate_claude(system_prompt, user_prompt, response_format_json)
             elif self.provider == "ollama":
                 return self._generate_ollama(system_prompt, user_prompt, response_format_json)
+            elif self.provider == "opencode":
+                return self._generate_opencode(system_prompt, user_prompt, response_format_json)
         except Exception as e:
-            # Fallback to mock with warning message if LLM fails
-            print(f"\n[Warning] LLM API Call failed ({e}). Falling back to mock generator.")
-            return self._mock_generate(system_prompt, user_prompt, response_format_json)
+            raise Exception(f"LLM API call failed: {e}")
 
     def _generate_gemini(self, system_prompt, user_prompt, response_format_json):
         import google.generativeai as genai
@@ -117,6 +170,53 @@ class LLMClient:
         res = requests.post(url, json=data, timeout=60)
         res.raise_for_status()
         return res.json().get("response", "")
+
+    def _generate_opencode(self, system_prompt, user_prompt, response_format_json):
+        import requests
+        
+        headers = {"Content-Type": "application/json"}
+        
+        create_resp = requests.post(
+            f"{self.base_url.rstrip('/')}/session",
+            headers=headers,
+            json={},
+            timeout=10
+        )
+        create_resp.raise_for_status()
+        session = create_resp.json()
+        session_id = session.get("id")
+        
+        if not session_id:
+            raise Exception("Failed to create OpenCode session")
+        
+        parts = [{"type": "text", "text": user_prompt}]
+        body = {
+            "parts": parts,
+            "system": system_prompt
+        }
+        
+        if response_format_json:
+            body["format"] = {
+                "type": "json_schema",
+                "schema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        
+        msg_resp = requests.post(
+            f"{self.base_url.rstrip('/')}/session/{session_id}/message",
+            headers=headers,
+            json=body,
+            timeout=120
+        )
+        msg_resp.raise_for_status()
+        result = msg_resp.json()
+        
+        parts = result.get("parts", [])
+        text_parts = [p.get("text", "") for p in parts if p.get("type") == "text"]
+        
+        return "\n".join(text_parts)
 
     def _mock_generate(self, system_prompt, user_prompt, response_format_json):
         """Simulates LLM responses with rich, narrative-driven output for demo/testing purposes."""

@@ -58,11 +58,12 @@ function handleProviderChange() {
     const apiKeyGroup = document.getElementById('api-key-group');
     const modelGroup = document.getElementById('model-group');
     const ollamaGroup = document.getElementById('ollama-host-group');
+    const opencodeGroup = document.getElementById('opencode-host-group');
 
-    // Default hiding
     apiKeyGroup.style.display = 'none';
     modelGroup.style.display = 'none';
     ollamaGroup.style.display = 'none';
+    opencodeGroup.style.display = 'none';
 
     if (provider === 'mock') {
         return;
@@ -71,21 +72,82 @@ function handleProviderChange() {
     if (provider === 'ollama') {
         modelGroup.style.display = 'flex';
         ollamaGroup.style.display = 'flex';
+        fetchModels();
+    } else if (provider === 'opencode') {
+        opencodeGroup.style.display = 'flex';
+        modelGroup.style.display = 'flex';
+        fetchModels();
     } else {
         apiKeyGroup.style.display = 'flex';
-        modelGroup.style.display = 'flex';
+    }
+}
+
+async function fetchModels() {
+    const provider = document.getElementById('provider-select').value;
+    const apiKey = document.getElementById('api-key-input').value.trim();
+    const modelGroup = document.getElementById('model-group');
+    const modelSelect = document.getElementById('model-select');
+    const modelLoading = document.getElementById('model-loading');
+
+    if (provider === 'mock' || provider === 'ollama' || provider === 'opencode') {
+        return;
+    }
+
+    if (!apiKey) {
+        return;
+    }
+
+    modelGroup.style.display = 'flex';
+    modelLoading.style.display = 'inline-block';
+    modelSelect.innerHTML = '<option value="">Loading...</option>';
+
+    try {
+        const response = await fetch('/api/models', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider, api_key: apiKey })
+        });
+        const data = await response.json();
+
+        modelLoading.style.display = 'none';
+
+        if (data.success && data.models.length > 0) {
+            modelSelect.innerHTML = '<option value="">Select a model...</option>';
+            data.models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model;
+                option.textContent = model;
+                modelSelect.appendChild(option);
+            });
+        } else if (data.error) {
+            modelSelect.innerHTML = '<option value="">Error loading models</option>';
+            showNotification('Failed to fetch models: ' + data.error, 'error');
+        } else {
+            modelSelect.innerHTML = '<option value="">No models found</option>';
+        }
+    } catch (err) {
+        modelLoading.style.display = 'none';
+        modelSelect.innerHTML = '<option value="">Error</option>';
+        showNotification('Failed to fetch models: ' + err.message, 'error');
     }
 }
 
 // VALIDATE STEP 2 CONFIG
 function validateLLMConfig() {
     const provider = document.getElementById('provider-select').value;
-    const apiKey = document.getElementById('api-key-input').value.strip ? document.getElementById('api-key-input').value.strip() : document.getElementById('api-key-input').value;
-    const model = document.getElementById('model-input').value.strip ? document.getElementById('model-input').value.strip() : document.getElementById('model-input').value;
-    const ollamaHost = document.getElementById('ollama-host-input').value.strip ? document.getElementById('ollama-host-input').value.strip() : document.getElementById('ollama-host-input').value;
+    const apiKey = document.getElementById('api-key-input').value.trim();
+    const modelSelect = document.getElementById('model-select');
+    const model = provider === 'ollama' ? 'llama3' : (provider === 'opencode' ? 'claude-3-5-sonnet-20241022' : (modelSelect.value || ''));
+    const ollamaHost = document.getElementById('ollama-host-input').value.trim();
+    const opencodeHost = document.getElementById('opencode-host-input').value.trim();
 
-    if (provider !== 'mock' && provider !== 'ollama' && !apiKey) {
+    if (provider !== 'mock' && provider !== 'ollama' && provider !== 'opencode' && !apiKey) {
         showNotification('API Key is required for the selected provider.', 'error');
+        return;
+    }
+
+    if (!model && provider !== 'ollama' && provider !== 'opencode') {
+        showNotification('Please select or enter a model.', 'error');
         return;
     }
 
@@ -93,7 +155,8 @@ function validateLLMConfig() {
         provider: provider,
         api_key: apiKey,
         model: model,
-        ollama_host: ollamaHost
+        ollama_host: ollamaHost,
+        opencode_host: opencodeHost
     };
 
     goToStep(3);
@@ -138,7 +201,8 @@ async function runAnalysis() {
                 path: repoPath,
                 provider: providerConfig.provider,
                 api_key: providerConfig.api_key,
-                model: providerConfig.model
+                model: providerConfig.model,
+                base_url: providerConfig.provider === 'ollama' ? providerConfig.ollama_host : providerConfig.opencode_host
             })
         });
 
@@ -392,6 +456,7 @@ async function startGeneration(isInstant, compiledAnswers = '') {
                 provider: providerConfig.provider,
                 api_key: providerConfig.api_key,
                 model: providerConfig.model,
+                base_url: providerConfig.provider === 'ollama' ? providerConfig.ollama_host : providerConfig.opencode_host,
                 custom_answers: isInstant ? '' : compiledAnswers,
                 style: selectedStyle,
                 lang: document.getElementById('lang-select').value
