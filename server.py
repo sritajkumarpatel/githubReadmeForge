@@ -13,7 +13,7 @@ from readme_forge.llm import LLMClient
 from readme_forge.agents.reader import ReaderAgent
 from readme_forge.agents.analyzer import AnalyzerAgent
 from readme_forge.agents.writer import WriterAgent
-from readme_forge.agents.contracts import normalize_analysis
+from readme_forge.agents.contracts import normalize_analysis, build_documentation_plan
 
 class APIRequestHandler(BaseHTTPRequestHandler):
     def end_headers(self):
@@ -91,6 +91,10 @@ class APIRequestHandler(BaseHTTPRequestHandler):
             self._handle_generate()
         elif clean_path == "/api/models":
             self._handle_models()
+        elif clean_path == "/api/export":
+            self._handle_export()
+        elif clean_path == "/api/drift":
+            self._handle_drift()
         else:
             self.send_error(404, "API Endpoint Not Found")
 
@@ -161,6 +165,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
             llm_client = LLMClient(provider=provider, model=model, api_key=api_key, base_url=base_url)
             analyzer = AnalyzerAgent(llm_client)
             analysis = analyzer.analyze(scan_results)
+            doc_plan = build_documentation_plan(analysis)
 
             # Generate completeness score
             score = self._calculate_readme_score(analysis, scan_results)
@@ -169,7 +174,8 @@ class APIRequestHandler(BaseHTTPRequestHandler):
                 "success": True,
                 "score": score,
                 "scan": scan_results,
-                "analysis": analysis
+                "analysis": analysis,
+                "doc_plan": doc_plan
             })
         except FileNotFoundError as e:
             self._send_json({
@@ -303,13 +309,16 @@ class APIRequestHandler(BaseHTTPRequestHandler):
             llm_client = LLMClient(provider=provider, model=model, api_key=api_key, base_url=base_url)
             writer = WriterAgent(llm_client)
             
-            # Determine output_dir
+            # Determine output_dir (always save drafts into temporary draft folder)
             target_path = scan_results.get("path", ".")
-            output_dir = Path(target_path)
-            if not output_dir.exists() or "readme_forge_clone_" in output_dir.name:
-                output_dir = Path("./readme_forge_output")
-                output_dir.mkdir(exist_ok=True)
+            draft_dir = Path("./.readme_forge_draft")
+            if draft_dir.exists():
+                import shutil
+                shutil.rmtree(draft_dir, ignore_errors=True)
+            draft_dir.mkdir(parents=True, exist_ok=True)
+            output_dir = draft_dir
 
+            brief = req_body.get("brief")
             readme_md = writer.generate_readme(
                 scan_results=scan_results,
                 analysis=analysis,
@@ -317,8 +326,12 @@ class APIRequestHandler(BaseHTTPRequestHandler):
                 style=readme_style,
                 output_dir=output_dir,
                 target_path_or_url=target_path,
-                lang=lang
+                lang=lang,
+                brief=brief
             )
+            # Save README.md in the draft area
+            (draft_dir / "README.md").write_text(readme_md, encoding="utf-8")
+
             self._send_json({
                 "success": True,
                 "readme": readme_md,
@@ -371,29 +384,113 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(data, indent=2).encode('utf-8'))
 
     def _calculate_readme_score(self, analysis, scan_results):
-        """Calculates a visual completeness rating out of 100 based on structural analyzer results."""
+        """Calculates a visual completeness rating out of 100 based on structural codebase scanning and analysis."""
         existing_readme = scan_results.get("existing_readme", "").strip()
         if not existing_readme:
             return 10  # Very poor default if README is empty
 
         score = 100
+        readme_lower = existing_readme.lower()
+
+        # 1. Check for visual elements (images, svgs, or mermaid diagrams)
+        has_visuals = ("<img" in readme_lower or "![" in readme_lower or "```mermaid" in readme_lower)
+        if not has_visuals:
+            score -= 20
+
+        # 2. Check for code examples / usage block
+        has_usage = ("usage" in readme_lower or "quick start" in readme_lower or "getting started" in readme_lower)
+        if not has_usage:
+            score -= 20
+
+        # 3. Check for installation block
+        has_install = ("install" in readme_lower or "setup" in readme_lower)
+        if not has_install:
+            score -= 20
+
+        # 4. Check for configuration / environment variables
+        has_config = any(term in readme_lower for term in ("config", "env", "port", "key"))
+        if not has_config:
+            score -= 10
+
+        # 5. Check for license / contributing
+        has_license = ("license" in readme_lower or "mit" in readme_lower or "apache" in readme_lower)
+        if not has_license:
+            score -= 10
+
+        # Also deduct for improvements identified by analyzer
         improvements = analysis.get("improvements", [])
-        
-        # Deduct score based on issues
-        # Critical issues (Mermaid flow diagram missing, no installation instructions) deduct more.
-        for imp in improvements:
-            imp_type = imp.get("type", "General").lower()
-            if "structure" in imp_type:
-                score -= 15
-            elif "examples" in imp_type:
-                score -= 15
-            elif "configuration" in imp_type:
-                score -= 10
-            else:
-                score -= 5
-                
-        # Limit minimum score
-        return max(score, 15)
+        if improvements:
+            score -= min(20, len(improvements) * 5)
+
+        return max(15, min(score, 100))
+
+    def _handle_export(self):
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            req_body = json.loads(post_data) if post_data else {}
+        except Exception as e:
+            self._send_json({"success": False, "error": f"Invalid JSON body: {e}"}, 400)
+            return
+
+        target_path = req_body.get("path")
+        if not target_path or not isinstance(target_path, str):
+            target_path = "."
+        target_path = target_path.strip()
+        target_dir = Path(target_path).resolve()
+        draft_dir = Path("./.readme_forge_draft").resolve()
+
+        if not draft_dir.exists() or not (draft_dir / "README.md").exists():
+            self._send_json({"success": False, "error": "No draft content found to export. Generate a draft first."}, 400)
+            return
+
+        try:
+            # 1. Copy README.md
+            target_readme = target_dir / "README.md"
+            import shutil
+            shutil.copy2(draft_dir / "README.md", target_readme)
+
+            # 2. Copy assets folder if it exists
+            draft_assets = draft_dir / "assets" / "readme"
+            if draft_assets.exists():
+                target_assets = target_dir / "assets" / "readme"
+                target_assets.mkdir(parents=True, exist_ok=True)
+                for item in draft_assets.iterdir():
+                    if item.is_file():
+                        shutil.copy2(item, target_assets / item.name)
+
+            self._send_json({"success": True, "message": "Draft exported successfully."})
+        except Exception as e:
+            self._send_json({"success": False, "error": f"Failed to export files: {e}"}, 500)
+
+    def _handle_drift(self):
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            req_body = json.loads(post_data) if post_data else {}
+        except Exception as e:
+            self._send_json({"success": False, "error": f"Invalid JSON body: {e}"}, 400)
+            return
+
+        scan_results = req_body.get("scan")
+        analysis = req_body.get("analysis")
+        target_path = req_body.get("path", ".").strip()
+
+        if not scan_results or not analysis:
+            self._send_json({"success": False, "error": "Analysis context is required for drift detection."}, 400)
+            return
+
+        try:
+            from readme_forge.agents.drift import DriftDetector
+            detector = DriftDetector(target_path)
+            drifts = detector.detect(scan_results, analysis)
+            self._send_json({
+                "success": True,
+                "drift": drifts
+            })
+        except Exception as e:
+            self._send_json({"success": False, "error": f"Drift detection failed: {e}"}, 500)
+
 
 
 import urllib.parse

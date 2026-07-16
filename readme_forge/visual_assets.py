@@ -98,25 +98,43 @@ class VisualAssetGenerator:
         self.output_dir = Path(output_dir)
         self.assets_dir = self.output_dir / "assets" / "readme"
 
-    def generate(self, analysis: dict[str, Any]) -> dict[str, Any]:
+    def generate(
+        self,
+        analysis: dict[str, Any],
+        strategy: str = "ui_app",
+        no_external_assets: bool = False,
+    ) -> dict[str, Any]:
         """Write the visual package and return stable README references."""
         self.assets_dir.mkdir(parents=True, exist_ok=True)
         project_name = _short_label(str(analysis.get("project_name") or "Project"), 44)
         persona = _short_label(str(analysis.get("project_persona") or "Verified project documentation"), 92)
         flow = select_component_flow(analysis.get("connections", []))
 
+        # Handle minimal strategy (no heavy banner files)
+        if strategy == "minimal":
+            return {
+                "brand_light": "",
+                "brand_dark": "",
+                "architecture": "",
+                "technology_icons": [],
+                "attributions": "",
+                "component_flow": [],
+            }
+
+        # Build strategy-specific hero SVG
         (self.assets_dir / "brand-light.svg").write_text(
-            self._brand_svg(project_name, persona, dark=False), encoding="utf-8"
+            self._brand_svg(project_name, persona, strategy=strategy, dark=False), encoding="utf-8"
         )
         (self.assets_dir / "brand-dark.svg").write_text(
-            self._brand_svg(project_name, persona, dark=True), encoding="utf-8"
+            self._brand_svg(project_name, persona, strategy=strategy, dark=True), encoding="utf-8"
         )
+
         if flow:
             (self.assets_dir / "architecture.svg").write_text(
                 self._architecture_svg(flow), encoding="utf-8"
             )
 
-        icons = self._technology_icons(analysis.get("tech_stack", []))
+        icons = [] if no_external_assets else self._technology_icons(analysis.get("tech_stack", []))
         if icons:
             (self.assets_dir / "ATTRIBUTIONS.md").write_text(self._attributions(icons), encoding="utf-8")
 
@@ -129,8 +147,10 @@ class VisualAssetGenerator:
             "component_flow": flow,
         }
 
-    def markdown_intro(self, assets: dict[str, Any]) -> str:
+    def markdown_intro(self, assets: dict[str, Any], no_external_assets: bool = False) -> str:
         """Return a GitHub-safe visual header assembled from generated assets."""
+        if not assets.get("brand_light"):
+            return ""
         lines = [
             "<picture>",
             f'  <source media="(prefers-color-scheme: dark)" srcset="{assets["brand_dark"]}">',
@@ -138,7 +158,7 @@ class VisualAssetGenerator:
             "</picture>",
         ]
         icons = assets.get("technology_icons", [])
-        if icons:
+        if icons and not no_external_assets:
             lines.extend(["", '<p align="center">'])
             for icon in icons:
                 lines.append(
@@ -168,12 +188,94 @@ class VisualAssetGenerator:
                 icons.append({"name": match[0], "slug": match[1]})
         return icons[:6]
 
-    def _brand_svg(self, project_name: str, persona: str, dark: bool) -> str:
+    def _brand_svg(self, project_name: str, persona: str, strategy: str, dark: bool) -> str:
         background = "#0b1020" if dark else "#f7f9fc"
         primary = "#f4f7ff" if dark else "#14213d"
         muted = "#b7c2e2" if dark else "#52627e"
         card = "#141c33" if dark else "#ffffff"
-        return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-label="{escape(project_name)}">
+
+        if strategy == "ui_app":
+            # Storyboard / UI panel composition
+            return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-label="{escape(project_name)}">
+  <rect width="1200" height="280" fill="{background}"/>
+  <rect x="58" y="32" width="1084" height="216" rx="10" fill="{card}" stroke="{muted}" stroke-width="1" opacity="0.85"/>
+  <rect x="58" y="32" width="1084" height="34" rx="10" fill="{primary}" opacity="0.08"/>
+  <circle cx="82" cy="49" r="5" fill="#ff5f56"/>
+  <circle cx="98" cy="49" r="5" fill="#ffbd2e"/>
+  <circle cx="114" cy="49" r="5" fill="#27c93f"/>
+  <rect x="76" y="80" width="190" height="150" rx="6" fill="{background}" stroke="{muted}" stroke-width="1" opacity="0.5"/>
+  <rect x="290" y="80" width="828" height="150" rx="6" fill="{background}" stroke="{muted}" stroke-width="1" opacity="0.5"/>
+  <text x="318" y="132" fill="{primary}" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="700">{escape(project_name)}</text>
+  <text x="318" y="168" fill="{muted}" font-family="Arial, Helvetica, sans-serif" font-size="17">{escape(persona)}</text>
+  <rect x="318" y="192" width="140" height="26" rx="13" fill="#6d5dfc" opacity="0.9"/>
+  <text x="388" y="209" fill="#ffffff" font-family="Arial, sans-serif" font-size="11" font-weight="bold" text-anchor="middle">UI Application</text>
+</svg>'''
+
+        elif strategy == "api":
+            # API Request-Response flow composition
+            arrow_color = "#6d5dfc"
+            green_arrow = "#00c2a8"
+            return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-label="{escape(project_name)}">
+  <defs>
+    <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="{green_arrow}"/></marker>
+    <marker id="arrow-purple" markerWidth="8" markerHeight="8" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="{arrow_color}"/></marker>
+  </defs>
+  <rect width="1200" height="280" fill="{background}"/>
+  <rect x="80" y="65" width="280" height="150" rx="12" fill="{card}" stroke="{muted}" stroke-width="1" opacity="0.7"/>
+  <text x="220" y="105" text-anchor="middle" fill="{primary}" font-family="Arial, sans-serif" font-size="16" font-weight="700">HTTP Client Request</text>
+  <rect x="110" y="130" width="220" height="28" rx="6" fill="#00c2a8" opacity="0.12"/>
+  <text x="220" y="148" text-anchor="middle" fill="{primary}" font-family="Courier, monospace" font-size="12" font-weight="bold">GET /api/v1/resources</text>
+  
+  <path d="M 390 140 H 510" stroke="{arrow_color}" stroke-width="3" stroke-dasharray="5,5" marker-end="url(#arrow-purple)"/>
+  <text x="450" y="125" text-anchor="middle" fill="{muted}" font-family="Arial, sans-serif" font-size="12">JSON Payload</text>
+
+  <rect x="540" y="65" width="300" height="150" rx="12" fill="{card}" stroke="{muted}" stroke-width="1" opacity="0.7"/>
+  <text x="690" y="105" text-anchor="middle" fill="{primary}" font-family="Arial, sans-serif" font-size="16" font-weight="700">API Router Gateway</text>
+  <text x="690" y="142" text-anchor="middle" fill="{muted}" font-family="Arial, sans-serif" font-size="13">{escape(project_name)}</text>
+  <text x="690" y="172" text-anchor="middle" fill="#6d5dfc" font-family="Arial, sans-serif" font-size="12" font-weight="bold">Routing &amp; Endpoints</text>
+
+  <path d="M 870 140 H 990" stroke="{green_arrow}" stroke-width="3" marker-end="url(#arrow-green)"/>
+  <text x="930" y="125" text-anchor="middle" fill="{muted}" font-family="Arial, sans-serif" font-size="12">Response 200 OK</text>
+</svg>'''
+
+        elif strategy == "package":
+            # Code structure / Usage snippet motif
+            return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-label="{escape(project_name)}">
+  <rect width="1200" height="280" fill="{background}"/>
+  <rect x="60" y="40" width="1080" height="200" rx="10" fill="#0f172a" stroke="#1e293b" stroke-width="2"/>
+  <circle cx="90" cy="65" r="5" fill="#ff5f56"/>
+  <circle cx="106" cy="65" r="5" fill="#ffbd2e"/>
+  <circle cx="122" cy="65" r="5" fill="#27c93f"/>
+  <text x="90" y="115" fill="#38bdf8" font-family="Courier, monospace" font-size="16">import {escape(project_name.lower().replace(" ", "_"))}</text>
+  <text x="90" y="150" fill="#e2e8f0" font-family="Courier, monospace" font-size="16">sdk = {escape(project_name.replace(" ", ""))}.initialize(api_key="sk_...")</text>
+  <text x="90" y="185" fill="#34d399" font-family="Courier, monospace" font-size="16">result = sdk.execute(query_context)</text>
+  <text x="90" y="215" fill="#94a3b8" font-family="Courier, monospace" font-size="13"># {escape(persona)}</text>
+</svg>'''
+
+        elif strategy == "data":
+            # Chart/Schema/Data relationship motif
+            return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-label="{escape(project_name)}">
+  <rect width="1200" height="280" fill="{background}"/>
+  <rect x="100" y="50" width="250" height="180" rx="8" fill="{card}" stroke="{muted}" stroke-width="1"/>
+  <rect x="100" y="50" width="250" height="40" rx="8" fill="#6d5dfc" opacity="0.12"/>
+  <text x="225" y="75" text-anchor="middle" fill="{primary}" font-family="Arial, sans-serif" font-weight="bold" font-size="14">Source Code Input</text>
+  <text x="120" y="120" fill="{muted}" font-family="Arial, sans-serif" font-size="12">🗝️ id : INT</text>
+  <text x="120" y="150" fill="{muted}" font-family="Arial, sans-serif" font-size="12">🔹 path : VARCHAR</text>
+  <text x="120" y="180" fill="{muted}" font-family="Arial, sans-serif" font-size="12">🔹 content : TEXT</text>
+
+  <path d="M 370 140 H 490" stroke="#6d5dfc" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <rect x="510" y="50" width="260" height="180" rx="8" fill="{card}" stroke="{muted}" stroke-width="1"/>
+  <rect x="510" y="50" width="260" height="40" rx="8" fill="#00c2a8" opacity="0.12"/>
+  <text x="640" y="75" text-anchor="middle" fill="{primary}" font-family="Arial, sans-serif" font-weight="bold" font-size="14">Analysis Output</text>
+  <text x="530" y="120" fill="{muted}" font-family="Arial, sans-serif" font-size="12">🗝️ analysis_id : INT</text>
+  <text x="530" y="150" fill="{muted}" font-family="Arial, sans-serif" font-size="12">🔹 sections : ARRAY</text>
+  <text x="530" y="180" fill="{muted}" font-family="Arial, sans-serif" font-size="12">🔹 strategy : VARCHAR</text>
+</svg>'''
+
+        else:
+            # Default fallback brand SVG
+            return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-label="{escape(project_name)}">
   <rect width="1200" height="280" fill="{background}"/>
   <circle cx="1080" cy="48" r="210" fill="#6d5dfc" opacity=".18"/>
   <circle cx="1120" cy="258" r="170" fill="#00c2a8" opacity=".12"/>

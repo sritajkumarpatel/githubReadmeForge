@@ -45,6 +45,11 @@
                 <div class="step-line"></div>
                 <div class="step-item" data-step="5">
                     <div class="step-dot"></div>
+                    <span class="step-label">Brief</span>
+                </div>
+                <div class="step-line"></div>
+                <div class="step-item" data-step="6">
+                    <div class="step-dot"></div>
                     <span class="step-label">Export</span>
                 </div>
             </div>
@@ -184,12 +189,23 @@
                         </div>
                         <!-- Persona summary -->
                         <div class="summary-box">
+                            <div style="margin-bottom: 1rem; display: flex; gap: 0.75rem; align-items: center;">
+                                <span class="badge" id="dashboard-project-type" style="background: var(--accent-primary); color: white; padding: 0.35rem 0.7rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase;">—</span>
+                                <span class="badge" id="dashboard-project-maturity" style="background: var(--accent-success); color: white; padding: 0.35rem 0.7rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase;">—</span>
+                            </div>
                             <h4>Project Persona Summary</h4>
                             <p id="dashboard-persona">Analyzing project type...</p>
                             
                             <h4 style="margin-top: 1rem;">Detected Tech Stack</h4>
                             <div class="tech-pill-container" id="dashboard-tech-stack"></div>
                         </div>
+                    </div>
+
+                    <!-- Documentation Drift Status -->
+                    <div class="drift-box" id="dashboard-drift-box" style="display: none; margin-bottom: 2rem;">
+                        <h3>Documentation Drift Status</h3>
+                        <p class="box-sub">Checks if code components, commands, or keys are documented in the current README.</p>
+                        <div class="drift-content" id="dashboard-drift-content"></div>
                     </div>
 
                     <!-- Improvements Table -->
@@ -212,66 +228,112 @@
                         </div>
                     </div>
 
-                    <div class="style-select-box">
-                        <h3>Select README Design Style</h3>
-                        <p class="box-sub">Choose a visual theme for the generated markdown content.</p>
-
-                        <div class="style-cards-grid">
-                            <div class="style-card active" data-style="visual_rich" onclick="selectStyle('visual_rich')">
-                                <div class="style-preview">
-                                    <img src="assets/styles/visual-rich.svg" alt="Visual Rich Preview">
-                                </div>
-                                <div class="style-card-footer">
-                                    <span class="style-name">Visual Rich</span>
-                                    <span class="style-badge">Default</span>
-                                </div>
-                            </div>
-                            <div class="style-card" data-style="minimalist" onclick="selectStyle('minimalist')">
-                                <div class="style-preview">
-                                    <img src="assets/styles/minimalist.svg" alt="Minimalist Preview">
-                                </div>
-                                <div class="style-card-footer">
-                                    <span class="style-name">Minimalist</span>
-                                </div>
-                            </div>
-                            <div class="style-card" data-style="enterprise" onclick="selectStyle('enterprise')">
-                                <div class="style-preview">
-                                    <img src="assets/styles/enterprise.svg" alt="Enterprise Preview">
-                                </div>
-                                <div class="style-card-footer">
-                                    <span class="style-name">Enterprise</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="style-select-box" style="margin-top: 2rem;">
-                        <h3>Select Target Language</h3>
-                        <p class="box-sub">Choose the language for the forged README.md file.</p>
-                        
-                        <div class="form-group" style="max-width: 300px; margin-top: 1rem;">
-                            <select id="lang-select" style="width: 100%; padding: 0.75rem; border-radius: 8px; background: rgba(22, 29, 49, 0.8); border: 1px solid rgba(255, 255, 255, 0.08); color: white; font-family: inherit;">
-                                <option value="en" selected>English</option>
-                                <option value="zh-CN">Simplified Chinese (简体中文)</option>
-                                <option value="es">Spanish (Español)</option>
-                                <option value="ja">Japanese (日本語)</option>
-                                <option value="de">German (Deutsch)</option>
-                                <option value="fr">French (Français)</option>
-                            </select>
-                        </div>
-                    </div>
-
                     <div class="action-row" id="dashboard-actions">
                         <button class="btn btn-secondary" onclick="goToStep(3)">Back</button>
-                        <button class="btn btn-primary btn-large" onclick="startGeneration(true)">
-                            Generate README
+                        <button class="btn btn-primary btn-large btn-glow" onclick="loadDesignBrief()">
+                            Review Design Brief &nbsp; →
                         </button>
                     </div>
                 </div>
             </section>
 
-            <!-- STEP 5: PREVIEW & EXPORT -->
+            <!-- STEP 5: DESIGN BRIEF REVIEW -->
             <section class="wizard-panel" id="panel-5">
+                <!-- Generation loader overlay -->
+                <div class="loader-overlay" id="brief-loader" style="display: none;">
+                    <div class="loader-spinner"></div>
+                    <p class="loader-status" id="brief-loader-status">Writer Agent forging README...</p>
+                </div>
+
+                <div class="brief-wrapper">
+                    <h2>Design Brief Review</h2>
+                    <p class="panel-desc">Inspect repository evidence, modify intent, and finalize your documentation plan before generating.</p>
+
+                    <div class="brief-grid">
+                        <!-- Evidence and Classification (Left Column) -->
+                        <div class="brief-column">
+                            <div class="brief-card">
+                                <h3>Repository Classification</h3>
+                                <div class="brief-meta-row">
+                                    <div class="meta-label">Primary Intent:</div>
+                                    <div class="meta-val" id="brief-primary-intent">—</div>
+                                </div>
+                                <div class="brief-meta-row">
+                                    <div class="meta-label">Delivery Surfaces:</div>
+                                    <div class="meta-val" id="brief-delivery-surfaces">—</div>
+                                </div>
+                                <div class="brief-meta-row">
+                                    <div class="meta-label">Confidence Score:</div>
+                                    <div class="meta-val" id="brief-confidence">—</div>
+                                </div>
+                            </div>
+
+                            <div class="brief-card">
+                                <h3>Inspect Signals & Evidence</h3>
+                                <div class="evidence-list" id="brief-evidence-container">
+                                    <!-- Rendered dynamically -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Layout & Asset Strategy (Right Column) -->
+                        <div class="brief-column">
+                            <div class="brief-card">
+                                <h3>Proposed Sections</h3>
+                                <p class="box-sub">Choose which document blocks to generate.</p>
+                                <div class="checkbox-grid" id="brief-sections-container">
+                                    <!-- Rendered dynamically -->
+                                </div>
+                            </div>
+
+                            <div class="brief-card">
+                                <h3>Visual Asset Strategy</h3>
+                                <p class="box-sub">Select design packs optimized for this project category.</p>
+                                <div class="strategy-selector">
+                                    <select id="brief-visual-pack" onchange="handleVisualPackChange()">
+                                        <option value="ui_app">UI Application: Storyboard & Interface Layout</option>
+                                        <option value="api">Backend API: Request-Response Flow</option>
+                                        <option value="package">Package / SDK: Import & Usage Motif</option>
+                                        <option value="data">Data / Research: Relational / Data Pipeline</option>
+                                        <option value="minimal">Minimal: Typography-First, No SVGs</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group" style="margin-top: 1rem;">
+                                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-secondary); cursor: pointer;">
+                                        <input type="checkbox" id="brief-no-external-assets" style="margin: 0;"> Disable external simpleicon CDN (Self-contained mode)
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="brief-card" style="margin-top: 1rem;">
+                                <h3>Select Target Language</h3>
+                                <p class="box-sub">Choose the language for the forged README.md file.</p>
+                                <div class="form-group" style="margin-top: 1rem;">
+                                    <select id="lang-select" style="width: 100%; padding: 0.75rem; border-radius: 8px; background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-primary); font-family: inherit;">
+                                        <option value="en" selected>English</option>
+                                        <option value="zh-CN">Simplified Chinese (简体中文)</option>
+                                        <option value="es">Spanish (Español)</option>
+                                        <option value="ja">Japanese (日本語)</option>
+                                        <option value="de">German (Deutsch)</option>
+                                        <option value="fr">French (Français)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="action-row" id="brief-actions">
+                        <button class="btn btn-secondary" onclick="goToStep(4)">Back to Dashboard</button>
+                        <button class="btn btn-primary btn-large btn-glow" onclick="triggerDraftGeneration()">
+                            Generate Draft &nbsp; →
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- STEP 6: PREVIEW & EXPORT -->
+            <section class="wizard-panel" id="panel-6">
                 <div class="preview-wrapper">
                     <h2>Documentation Forged Successfully!</h2>
                     <p class="panel-desc">Preview your compiled markdown below, compare with the original file, or copy the code.</p>
@@ -336,9 +398,10 @@
                     </div>
 
                     <div class="action-row export-actions">
-                        <button class="btn btn-secondary" onclick="goToStep(4)">Back to Style</button>
+                        <button class="btn btn-secondary" onclick="goToStep(5)">Back to Brief</button>
                         <button class="btn btn-secondary" onclick="resetApp()">Start Over</button>
-                        <button class="btn btn-primary btn-large" onclick="copyMarkdown()">Copy Markdown</button>
+                        <button class="btn btn-info" onclick="copyMarkdown()">Copy Markdown</button>
+                        <button class="btn btn-success btn-large btn-glow" id="publish-btn" onclick="publishDraft()">Publish to Repo</button>
                     </div>
                 </div>
             </section>

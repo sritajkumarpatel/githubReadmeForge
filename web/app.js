@@ -2,6 +2,7 @@
 let currentStep = 1;
 let scanContext = null;
 let analysisContext = null;
+let docPlanContext = null;
 let providerConfig = {
     provider: '',
     model: '',
@@ -273,6 +274,7 @@ async function runAnalysis() {
         // Save scan and analysis context
         scanContext = data.scan;
         analysisContext = data.analysis;
+        docPlanContext = data.doc_plan;
 
         // Populate rating dashboard
         populateDashboard(data.score, data.analysis);
@@ -291,6 +293,12 @@ async function runAnalysis() {
 
 // POPULATE DIAGNOSTICS DASHBOARD
 function populateDashboard(score, analysis) {
+    // Set classification badges
+    const projectTypeBadge = document.getElementById('dashboard-project-type');
+    const maturityBadge = document.getElementById('dashboard-project-maturity');
+    if (projectTypeBadge) projectTypeBadge.textContent = analysis.project_type || 'Unknown';
+    if (maturityBadge) maturityBadge.textContent = analysis.project_maturity || 'Unknown';
+
     // 1. Score gauge
     const scoreText = document.getElementById('score-text');
     scoreText.textContent = score;
@@ -336,9 +344,70 @@ function populateDashboard(score, analysis) {
         `;
         tbody.appendChild(tr);
     });
+
+    // 5. Trigger documentation drift check
+    checkDocumentationDrift();
 }
 
-// // STYLE SELECTION STATE
+async function checkDocumentationDrift() {
+    const container = document.getElementById('dashboard-drift-content');
+    const box = document.getElementById('dashboard-drift-box');
+    if (!container || !box) return;
+
+    box.style.display = 'block';
+    container.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.9rem;"><span class="spinner-small"></span> Checking documentation drift...</div>';
+
+    try {
+        const repoPath = document.getElementById('repo-path-input').value.trim() || '.';
+        const response = await fetch('/api/drift', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                scan: scanContext,
+                analysis: analysisContext,
+                path: repoPath
+            })
+        });
+
+        if (!response.ok) {
+            container.innerHTML = `<div style="color: var(--accent-danger); font-size: 0.9rem;">Check failed: Server returned ${response.status} ${response.statusText}</div>`;
+            return;
+        }
+        const data = await response.json();
+        if (!data.success) {
+            container.innerHTML = `<div style="color: var(--accent-danger); font-size: 0.9rem;">Check failed: ${escapeHtml(data.error)}</div>`;
+            return;
+        }
+
+        const drift = data.drift || [];
+        if (drift.length === 0) {
+            container.innerHTML = `
+                <div class="drift-alert-success">
+                    <span>✅</span>
+                    <span>Documentation matches codebase. No undocumented changes detected.</span>
+                </div>
+            `;
+        } else {
+            let listHtml = '';
+            drift.forEach(item => {
+                listHtml += `<li><strong>[${escapeHtml(item.type)}]</strong> ${escapeHtml(item.message)}</li>`;
+            });
+
+            container.innerHTML = `
+                <div class="drift-alert-warning">
+                    <div class="drift-warning-title">⚠️ Detected Documentation Drift (${drift.length} changes)</div>
+                    <ul class="drift-warning-list">
+                        ${listHtml}
+                    </ul>
+                </div>
+            `;
+        }
+    } catch (err) {
+        container.innerHTML = `<div style="color: var(--accent-danger); font-size: 0.9rem;">Check failed: ${escapeHtml(err.message)}</div>`;
+    }
+}
+
+// STYLE SELECTION STATE
 let selectedStyle = 'visual_rich';
 
 function selectStyle(styleName) {
@@ -351,17 +420,126 @@ function selectStyle(styleName) {
     });
 }
 
-// GENERATION API CALL
-async function startGeneration(isInstant, compiledAnswers = '') {
-    // Use dashboard loader on step 4 instead of jumping to ingest
-    const loader = document.getElementById('dashboard-loader');
-    const loaderStatus = document.getElementById('dashboard-loader-status');
-    const dashboardActions = document.getElementById('dashboard-actions');
+// DESIGN BRIEF INTERACTIVE REVIEW
+function loadDesignBrief() {
+    if (!analysisContext) {
+        showNotification("No analysis data found. Please analyze codebase first.", "error");
+        return;
+    }
 
-    // Display loader overlay on dashboard
-    loader.style.display = 'flex';
-    if (dashboardActions) dashboardActions.style.display = 'none';
-    loaderStatus.textContent = "Writer Agent forging markdown README.md...";
+    // Set Classification Metadata
+    const classification = analysisContext.classification || {};
+    document.getElementById('brief-primary-intent').textContent = classification.primary_intent || analysisContext.project_type || 'Unknown';
+    document.getElementById('brief-delivery-surfaces').textContent = (classification.delivery_surfaces || []).join(', ') || 'None';
+    document.getElementById('brief-confidence').textContent = (classification.confidence !== undefined) ? classification.confidence : '1.0';
+
+    // Populate Evidence list
+    const evidenceContainer = document.getElementById('brief-evidence-container');
+    evidenceContainer.innerHTML = '';
+    
+    const evidence = classification.evidence || [];
+    if (evidence.length === 0) {
+        evidenceContainer.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.9rem;">No deterministic signals detected in repository tree.</div>';
+    } else {
+        evidence.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'evidence-badge';
+            card.innerHTML = `
+                <div class="evidence-source">${escapeHtml(item.source)}</div>
+                <div class="evidence-claim">${escapeHtml(item.claim)}</div>
+                <div class="evidence-signal">${escapeHtml(item.signal)}</div>
+            `;
+            evidenceContainer.appendChild(card);
+        });
+    }
+
+    // Populate Sections Checklist
+    const sectionsContainer = document.getElementById('brief-sections-container');
+    sectionsContainer.innerHTML = '';
+
+    const sectionDescriptions = {
+        'title': 'Project Title Block & Shields Badges',
+        'overview': 'One-liner Tagline & Core Description',
+        'problem': 'The Pain Point (Omitted for learn/minimal)',
+        'solution': 'The Solution Narrative (Omitted for learn/minimal)',
+        'key_concepts': 'Key Concepts & Terminology Table',
+        'architecture': 'Architecture Diagram & Subgraphs',
+        'features': 'Key Features & Capabilities Grid',
+        'installation': 'Copy-Pasteable Installation Steps',
+        'usage': 'Quick Start & Usage Examples',
+        'configuration': 'Config Variables & Options Table',
+        'api_reference': 'API Endpoints & Request Formats',
+        'data_models': 'Data Schema & Models Table',
+        'testing': 'Test Coverage & Run Instructions',
+        'repository_structure': 'Project Directory Tree Structure',
+        'contributing_license': 'Contributing Rules & License Details'
+    };
+
+    const docPlan = docPlanContext || { sections: ['title', 'overview'] };
+    Object.entries(sectionDescriptions).forEach(([sec, desc]) => {
+        const checked = docPlan.sections.includes(sec) ? 'checked' : '';
+        const label = document.createElement('label');
+        label.className = 'checkbox-label';
+        label.innerHTML = `
+            <input type="checkbox" name="brief-section" value="${sec}" ${checked}>
+            <span><strong>${sec}</strong> - ${desc}</span>
+        `;
+        sectionsContainer.appendChild(label);
+    });
+
+    // Auto-select visual pack matching primary intent
+    const visualPackSelect = document.getElementById('brief-visual-pack');
+    if (visualPackSelect) {
+        const intent = classification.primary_intent || 'minimal';
+        if (intent === 'application') {
+            visualPackSelect.value = 'ui_app';
+        } else if (intent === 'api') {
+            visualPackSelect.value = 'api';
+        } else if (intent === 'library') {
+            visualPackSelect.value = 'package';
+        } else if (intent === 'cli') {
+            visualPackSelect.value = 'package';
+        } else {
+            visualPackSelect.value = 'minimal';
+        }
+    }
+
+    goToStep(5);
+}
+
+function handleVisualPackChange() {
+    // Optional hook for visual strategy updates
+}
+
+function triggerDraftGeneration() {
+    // Collect selected sections
+    const checkboxes = document.querySelectorAll('input[name="brief-section"]:checked');
+    const selectedSections = Array.from(checkboxes).map(cb => cb.value);
+
+    // Collect pack strategy and CDN asset options
+    const visualPack = document.getElementById('brief-visual-pack').value;
+    const noExternalAssets = document.getElementById('brief-no-external-assets').checked;
+
+    const briefOptions = {
+        sections: selectedSections,
+        visual_pack: visualPack,
+        no_external_assets: noExternalAssets
+    };
+
+    startGeneration(true, '', briefOptions);
+}
+
+// GENERATION API CALL
+async function startGeneration(isInstant, compiledAnswers = '', briefOptions = null) {
+    const isBrief = !!briefOptions;
+    const loader = document.getElementById(isBrief ? 'brief-loader' : 'dashboard-loader');
+    const loaderStatus = document.getElementById(isBrief ? 'brief-loader-status' : 'dashboard-loader-status');
+    const actionsBlock = document.getElementById(isBrief ? 'brief-actions' : 'dashboard-actions');
+
+    // Display loader overlay
+    if (loader) loader.style.display = 'flex';
+    if (actionsBlock) actionsBlock.style.display = 'none';
+    if (loaderStatus) loaderStatus.textContent = "Writer Agent forging markdown README.md...";
 
     const statusMessages = [
         "Writer Agent preparing README structure...",
@@ -371,7 +549,7 @@ async function startGeneration(isInstant, compiledAnswers = '') {
     let msgIdx = 0;
     const statusInterval = setInterval(() => {
         if (msgIdx < statusMessages.length) {
-            loaderStatus.textContent = statusMessages[msgIdx++];
+            if (loaderStatus) loaderStatus.textContent = statusMessages[msgIdx++];
         }
     }, 4000);
 
@@ -388,14 +566,15 @@ async function startGeneration(isInstant, compiledAnswers = '') {
                 base_url: providerConfig.provider === 'ollama' ? providerConfig.ollama_host : providerConfig.opencode_host,
                 custom_answers: isInstant ? '' : compiledAnswers,
                 style: selectedStyle,
-                lang: document.getElementById('lang-select').value
+                lang: document.getElementById('lang-select').value,
+                brief: briefOptions
             })
         });
 
         clearInterval(statusInterval);
         const data = await response.json();
-        loader.style.display = 'none';
-        if (dashboardActions) dashboardActions.style.display = 'flex';
+        if (loader) loader.style.display = 'none';
+        if (actionsBlock) actionsBlock.style.display = 'flex';
 
         if (!data.success) {
             showNotification(`Generation failed: ${data.error}`, 'error');
@@ -404,14 +583,40 @@ async function startGeneration(isInstant, compiledAnswers = '') {
 
         // Render preview content
         displayGeneratedOutputs(data.readme);
-
-        goToStep(5);
+        goToStep(6);
 
     } catch (err) {
         clearInterval(statusInterval);
-        loader.style.display = 'none';
-        if (dashboardActions) dashboardActions.style.display = 'flex';
+        if (loader) loader.style.display = 'none';
+        if (actionsBlock) actionsBlock.style.display = 'flex';
         showNotification(`Generation request failed: ${err}`, 'error');
+    }
+}
+
+// PUBLISH DRAFT TO THE REPOSITORY
+async function publishDraft() {
+    const publishBtn = document.getElementById('publish-btn');
+    if (publishBtn) publishBtn.disabled = true;
+
+    try {
+        const response = await fetch('/api/export', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                path: scanContext.path || '.'
+            })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            showNotification('README.md and visual assets successfully exported to your workspace!', 'success');
+        } else {
+            showNotification(`Export failed: ${data.error}`, 'error');
+        }
+    } catch (err) {
+        showNotification(`Export failed: ${err}`, 'error');
+    } finally {
+        if (publishBtn) publishBtn.disabled = false;
     }
 }
 

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-label="Project">
+  <rect width="1200" height="280" fill="#0b1020"/>
+  <rect x="100" y="50" width="250" height="180" rx="8" fill="#141c33" stroke="#b7c2e2" stroke-width="1"/>
+  <rect x="100" y="50" width="250" height="40" rx="8" fill="#6d5dfc" opacity="0.12"/>
+  <text x="225" y="75" text-anchor="middle" fill="#f4f7ff" font-family="Arial, sans-serif" font-weight="bold" font-size="14">Source Code Input</text>
+  <text x="120" y="120" fill="#b7c2e2" font-family="Arial, sans-serif" font-size="12">🗝️ id : INT</text>
+  <text x="120" y="150" fill="#b7c2e2" font-family="Arial, sans-serif" font-size="12">🔹 path : VARCHAR</text>
+  <text x="120" y="180" fill="#b7c2e2" font-family="Arial, sans-serif" font-size="12">🔹 content : TEXT</text>
+
+  <path d="M 370 140 H 490" stroke="#6d5dfc" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <rect x="510" y="50" width="260" height="180" rx="8" fill="#141c33" stroke="#b7c2e2" stroke-width="1"/>
+  <rect x="510" y="50" width="260" height="40" rx="8" fill="#00c2a8" opacity="0.12"/>
+  <text x="640" y="75" text-anchor="middle" fill="#f4f7ff" font-family="Arial, sans-serif" font-weight="bold" font-size="14">Analysis Output</text>
+  <text x="530" y="120" fill="#b7c2e2" font-family="Arial, sans-serif" font-size="12">🗝️ analysis_id : INT</text>
+  <text x="530" y="150" fill="#b7c2e2" font-family="Arial, sans-serif" font-size="12">🔹 sections : ARRAY</text>
+  <text x="530" y="180" fill="#b7c2e2" font-family="Arial, sans-serif" font-size="12">🔹 strategy : VARCHAR</text>
+</svg>

@@ -67,6 +67,7 @@ class WriterAgent:
         output_dir=None,
         target_path_or_url=None,
         lang="en",
+        brief=None,
     ):
         """Generates the content of a polished, narrative-driven, professional README.md
         using deep codebase context, analysis, and architecture data."""
@@ -238,8 +239,15 @@ class WriterAgent:
             )
 
         documentation_plan = analysis.get("documentation_plan")
-        if not isinstance(documentation_plan, dict):
+        if brief and "sections" in brief:
+            documentation_plan = {
+                "sections": brief.get("sections"),
+                "evidence_only": False,
+                "include_architecture_diagram": "architecture" in brief.get("sections")
+            }
+        elif not isinstance(documentation_plan, dict):
             documentation_plan = build_documentation_plan(analysis)
+
         planned_sections = documentation_plan.get("sections", [])
         plan_text = ", ".join(planned_sections) if planned_sections else "title, overview"
         evidence_only = bool(documentation_plan.get("evidence_only"))
@@ -247,9 +255,18 @@ class WriterAgent:
         visual_intro = ""
         if style == "visual_rich" and output_dir:
             visual_generator = VisualAssetGenerator(Path(output_dir))
-            visual_assets = visual_generator.generate(analysis)
+            visual_pack = "ui_app"
+            no_external_assets = False
+            if brief:
+                visual_pack = brief.get("visual_pack", "ui_app")
+                no_external_assets = bool(brief.get("no_external_assets"))
+            visual_assets = visual_generator.generate(
+                analysis,
+                strategy=visual_pack,
+                no_external_assets=no_external_assets
+            )
             analysis["visual_assets"] = visual_assets
-            visual_intro = visual_generator.markdown_intro(visual_assets)
+            visual_intro = visual_generator.markdown_intro(visual_assets, no_external_assets=no_external_assets)
 
         system_prompt = (
             "You are an expert technical writer and product storyteller.\n"
