@@ -19,7 +19,7 @@ class WriterAgent:
         return Path(cleaned).resolve().name
 
     def generate_readme(self, scan_results, analysis, interactive_answers=None, style="visual_rich", output_dir=None, target_path_or_url=None, lang="en"):
-        """Generates the content of a polished, readable, visual README.md using the codebase context and analysis."""
+        """Generates the content of a polished, narrative-driven, professional README.md using deep codebase context and analysis."""
         
         # 1. Generate SVGs if output_dir is specified
         project_name = self._parse_project_name(target_path_or_url or scan_results.get("path"))
@@ -75,16 +75,39 @@ class WriterAgent:
             else:
                 lang_switcher = f"English · **{lang.upper()}**"
 
+        # Build rich context from analysis data
+        features_context = ""
+        for feat in analysis.get("key_features", []):
+            features_context += f"- {feat.get('name', '')}: {feat.get('description', '')} (Category: {feat.get('category', 'General')})\n"
+        
+        api_context = ""
+        for ep in analysis.get("api_endpoints", []):
+            api_context += f"- {ep.get('method', 'GET')} {ep.get('path', '')}: {ep.get('description', '')}\n"
+        
+        config_context = ""
+        for cv in analysis.get("config_variables", []):
+            req = "Required" if cv.get("required") else "Optional"
+            config_context += f"- {cv.get('name', '')}: {cv.get('description', '')} ({req}, default: {cv.get('default', 'N/A')})\n"
+        
+        cli_context = ""
+        for cmd in analysis.get("cli_commands", []):
+            cli_context += f"- `{cmd.get('command', '')}`: {cmd.get('description', '')}\n"
+
         system_prompt = (
-            "You are an expert technical writer and AI Developer Agent.\n"
-            "Your task is to write a highly polished, professional README.md for a project codebase.\n\n"
+            "You are an expert technical writer and product storyteller.\n"
+            "Your task is to write a HIGHLY POLISHED, PROFESSIONAL, NARRATIVE-DRIVEN README.md for a project codebase.\n\n"
+            "CRITICAL PHILOSOPHY:\n"
+            "- You are NOT just documenting code. You are SELLING the product to developers.\n"
+            "- A great README tells a STORY: Problem → Solution → How It Works → Features → Get Started.\n"
+            "- Every section must have DEPTH and SPECIFICITY. No generic filler text.\n"
+            "- Extract REAL details from the codebase — real file names, real commands, real config variables.\n\n"
             f"Formatting Theme instructions:\n{style_instruction}\n\n"
             f"Language settings:\n{lang_instruction}\n\n"
             "CRITICAL GUARDRAIL:\n"
             "If the user custom answers or prompt demands anything unrelated to documenting this project repository "
             "(such as writing standalone calculator scripts, general Python coding tasks, math solver programs, or unrelated topics), "
             "you MUST refuse the request and respond with exactly: 'Refusal: This request is unrelated to README generation. Please ask documentation-related questions.'\n\n"
-            "Otherwise, write the complete README markdown file. You MUST organize it strictly in the following **Visitor-First Layout Hierarchy**:\n"
+            "OTHERWISE, write the complete README markdown file using the following **Narrative-Driven Layout Structure**:\n\n"
             "1. **Hero Banner**: If not minimalist theme, embed the responsive dark/light hero banner:\n"
             "   <picture>\n"
             "     <source media=\"(prefers-color-scheme: dark)\" srcset=\"assets/readme/hero-dark.svg\">\n"
@@ -93,12 +116,43 @@ class WriterAgent:
             "   </picture>\n"
             f"2. **Language Switcher**: If the language switcher is defined below, insert it at the very top (right-aligned or centered):\n"
             f"   {lang_switcher}\n"
-            "3. **What & Why (Persona)**: A clear, high-level summary of what the project does, who it is for, and the main problem it solves. Do NOT jump into code first; explain the value proposition first.\n"
-            "4. **Quick Start / Usage**: A straightforward installation guide and concrete, copy-pasteable usage examples deduced from the codebase files.\n"
-            "5. **System Architecture**: A Mermaid.js block-flow diagram visualizer rendering the main components and how they connect.\n"
-            "6. **Repository Structure**: The scanned directory tree structure inside a code block.\n"
-            "7. **Configuration & Parameters**: Setup options, environment variables, or CLI parameters. Use collapsible `<details>` blocks for verbose tables to keep the README clean.\n"
-            "8. **Contributing & License**: Clean MIT/standard license and PR guide tags.\n\n"
+            "3. **Title Block**: Center-aligned project name with a bold tagline and shields.io badges for tech stack, license, etc.\n\n"
+            "4. **The Problem** (MANDATORY): Write a compelling 2-3 paragraph narrative explaining the PAIN POINT this project solves.\n"
+            "   - Use the `problem_statement` from analysis as a starting point, but EXPAND it into a relatable story.\n"
+            "   - Write from the developer's perspective: 'Every developer has been there...'\n"
+            "   - Use bullet points to list specific frustrations the tool addresses.\n"
+            "   - This section must make the reader FEEL the pain before showing the solution.\n\n"
+            "5. **The Solution** (MANDATORY): Write 2-3 paragraphs explaining HOW this project solves the problem.\n"
+            "   - Use the `solution_narrative` from analysis as a starting point, but EXPAND it.\n"
+            "   - Explain the key approach (e.g., 'It uses three AI agents to...', 'It provides a single CLI command to...')\n"
+            "   - Highlight what makes it different from alternatives.\n\n"
+            "6. **How It Works**: Include BOTH:\n"
+            "   a) A Mermaid.js diagram showing the actual component flow (use real file names from the codebase)\n"
+            "   b) A markdown table showing each major component, its role, input, and output\n"
+            "   c) An ASCII or box-diagram showing the data pipeline (Input → Processing → Output)\n\n"
+            "7. **Features**: Create a visually rich feature list with:\n"
+            "   - An emoji icon for each feature\n"
+            "   - A bold feature name as a sub-heading\n"
+            "   - A 2-3 sentence description explaining what it does and why it matters\n"
+            "   - Group related features logically\n"
+            "   - Use the `key_features` from analysis data\n\n"
+            "8. **Quick Start / Usage**: Concrete, copy-pasteable installation and usage examples:\n"
+            "   - Installation steps (git clone, pip install, npm install, etc.)\n"
+            "   - Basic usage command with expected output\n"
+            "   - Advanced usage examples if applicable\n"
+            "   - Use the `cli_commands` from analysis data if available\n\n"
+            "9. **Configuration & Parameters**: Comprehensive setup docs:\n"
+            "   - Environment variables table (Variable | Description | Required | Default)\n"
+            "   - CLI flags table if applicable (Flag | Short | Description | Default)\n"
+            "   - Use the `config_variables` and `cli_commands` from analysis data\n"
+            "   - Use collapsible `<details>` blocks for verbose tables\n\n"
+            "10. **API Reference** (only if api_endpoints exist): Document each endpoint with:\n"
+            "    - HTTP method and path\n"
+            "    - Request body JSON example\n"
+            "    - Response JSON example\n"
+            "    - Use the `api_endpoints` from analysis data\n\n"
+            "11. **Repository Structure**: The scanned directory tree with brief annotations for key directories.\n\n"
+            "12. **Contributing & License**: Clean links to CONTRIBUTING.md and LICENSE if they exist.\n\n"
             "Return only the raw markdown content without any wrapper code fences."
         )
 
@@ -108,8 +162,19 @@ class WriterAgent:
             f"File Tree Structure:\n{scan_results.get('tree')}\n\n"
             f"Tech Stack analyzed: {analysis.get('tech_stack')}\n"
             f"Project Persona: {analysis.get('project_persona')}\n"
-            f"Component Flow Connections: {analysis.get('connections')}\n"
+            f"Problem Statement: {analysis.get('problem_statement', 'Not specified')}\n"
+            f"Solution Narrative: {analysis.get('solution_narrative', 'Not specified')}\n"
+            f"Component Flow Connections: {analysis.get('connections')}\n\n"
         )
+        
+        if features_context:
+            user_prompt += f"Key Features extracted:\n{features_context}\n"
+        if api_context:
+            user_prompt += f"API Endpoints detected:\n{api_context}\n"
+        if config_context:
+            user_prompt += f"Configuration Variables found:\n{config_context}\n"
+        if cli_context:
+            user_prompt += f"CLI Commands available:\n{cli_context}\n"
 
         if interactive_answers:
             user_prompt += f"\nThe user has requested these specific customizations:\n{interactive_answers}\n"

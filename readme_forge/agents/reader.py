@@ -47,7 +47,7 @@ class ReaderAgent:
             shutil.rmtree(self.local_path, ignore_errors=True)
 
     def scan_codebase(self):
-        """Scans the codebase, extracting project tree structure and key config/source file contents."""
+        """Scans the codebase, extracting project tree structure, config files, source code, and narrative hints."""
         if not self.local_path:
             raise RuntimeError("ReaderAgent not set up. Call setup() first.")
             
@@ -55,21 +55,24 @@ class ReaderAgent:
         configs = self._read_config_files(self.local_path)
         existing_readme = self._read_existing_readme(self.local_path)
         code_context = self._read_primary_source_files(self.local_path)
+        narrative_hints = self._extract_narrative_hints(self.local_path)
 
         return {
             "path": self.local_path,
             "tree": tree_str,
             "configs": configs,
             "existing_readme": existing_readme,
-            "code_context": code_context
+            "code_context": code_context,
+            "narrative_hints": narrative_hints
         }
 
-    def _generate_tree(self, path, max_depth=3):
+    def _generate_tree(self, path, max_depth=4):
         """Generates a text representation of the directory tree, ignoring build/dependencies folders."""
         ignored_dirs = {
             ".git", "node_modules", "venv", ".venv", "env", "__pycache__", 
             "build", "dist", ".pytest_cache", ".eggs", "*.egg-info", "bin", 
-            "obj", "target", "vendor"
+            "obj", "target", "vendor", ".next", ".nuxt", "coverage",
+            ".tox", ".mypy_cache"
         }
         
         lines = []
@@ -105,11 +108,23 @@ class ReaderAgent:
         return "\n".join(lines)
 
     def _read_config_files(self, path):
-        """Reads project configuration files (e.g. package.json, requirements.txt, Cargo.toml)."""
+        """Reads project configuration files including env templates and Docker configs."""
         config_files = [
+            # Package managers
             "package.json", "requirements.txt", "setup.py", "pyproject.toml",
             "Cargo.toml", "go.mod", "Gemfile", "composer.json", "build.gradle",
-            "pom.xml", "Makefile", "CMakeLists.txt", "DockerFile", "docker-compose.yml"
+            "pom.xml", "setup.cfg",
+            # Build/deploy
+            "Makefile", "CMakeLists.txt", "Dockerfile", "docker-compose.yml",
+            "docker-compose.yaml",
+            # Environment
+            ".env.example", ".env.sample", ".env.template",
+            # Config
+            "tsconfig.json", "webpack.config.js", "vite.config.js",
+            "next.config.js", "tailwind.config.js",
+            # CI/CD
+            ".github/workflows/ci.yml", ".github/workflows/ci.yaml",
+            ".gitlab-ci.yml",
         ]
         
         configs = {}
@@ -117,30 +132,31 @@ class ReaderAgent:
             file_path = Path(path) / f_name
             if file_path.exists() and file_path.is_file():
                 try:
-                    # Read at most 150 lines/5000 characters to prevent overflow
                     content = file_path.read_text(errors="ignore")
-                    configs[f_name] = content[:5000]
+                    configs[f_name] = content[:6000]
                 except Exception as e:
                     configs[f_name] = f"Error reading: {e}"
         return configs
 
     def _read_existing_readme(self, path):
         """Attempts to read the current README file."""
-        readme_names = ["README.md", "readme.md", "README", "README.txt"]
+        readme_names = ["README.md", "readme.md", "README", "README.txt", "README.rst"]
         for f_name in readme_names:
             file_path = Path(path) / f_name
             if file_path.exists() and file_path.is_file():
                 try:
-                    return file_path.read_text(errors="ignore")[:8000]
+                    return file_path.read_text(errors="ignore")[:10000]
                 except Exception:
                     pass
         return ""
 
-    def _read_primary_source_files(self, path, max_files=6):
-        """Reads core entrypoint source files to understand the coding interface and entry files."""
-        # Common source extensions and potential entry points
-        source_extensions = {".py", ".js", ".ts", ".go", ".rs", ".java", ".cpp", ".cs"}
-        entry_patterns = {"main", "app", "index", "cli", "run", "server"}
+    def _read_primary_source_files(self, path, max_files=12):
+        """Reads core source files with intelligent prioritization for deeper context extraction."""
+        source_extensions = {".py", ".js", ".ts", ".tsx", ".jsx", ".go", ".rs", ".java", ".cpp", ".cs", ".rb"}
+        
+        # High-value filename patterns (scored higher)
+        entry_patterns = {"main", "app", "index", "cli", "run", "server", "api"}
+        architecture_patterns = {"agent", "route", "handler", "controller", "middleware", "service", "model", "config", "orchestrat"}
         
         scanned_files = {}
         path_obj = Path(path)
@@ -148,15 +164,33 @@ class ReaderAgent:
         file_candidates = []
         for root, dirs, files in os.walk(path_obj):
             # Ignore dependency paths
-            dirs[:] = [d for d in dirs if d not in {".git", "node_modules", "venv", "__pycache__", "build", "dist", "vendor"}]
+            dirs[:] = [d for d in dirs if d not in {
+                ".git", "node_modules", "venv", ".venv", "__pycache__", 
+                "build", "dist", "vendor", "coverage", ".next"
+            }]
             
             for file in files:
                 p = Path(root) / file
                 if p.suffix in source_extensions:
                     score = 0
+                    name_lower = p.stem.lower()
+                    
                     # Rank candidate by potential entrypoint name
-                    if any(pat in p.stem.lower() for pat in entry_patterns):
+                    if any(pat in name_lower for pat in entry_patterns):
                         score += 10
+                    
+                    # Boost architecture-significant files
+                    if any(pat in name_lower for pat in architecture_patterns):
+                        score += 8
+                    
+                    # Boost files with docstrings/comments at the top (likely well-documented)
+                    try:
+                        first_line = p.read_text(errors="ignore")[:200]
+                        if '"""' in first_line or "'''" in first_line or "/**" in first_line:
+                            score += 3
+                    except Exception:
+                        pass
+                    
                     # Rank higher if close to the root
                     score -= len(p.relative_to(path_obj).parts)
                     file_candidates.append((score, p))
@@ -168,9 +202,71 @@ class ReaderAgent:
             try:
                 rel_path = str(p.relative_to(path_obj))
                 content = p.read_text(errors="ignore")
-                # Take first 100 lines/3000 chars of each file
-                scanned_files[rel_path] = content[:3000]
+                # Take first 5000 chars of each file for deeper context
+                scanned_files[rel_path] = content[:5000]
             except Exception:
                 pass
                 
         return scanned_files
+
+    def _extract_narrative_hints(self, path):
+        """Extracts module-level docstrings, comments, and description fields as narrative hints for the analyzer."""
+        hints = []
+        path_obj = Path(path)
+        
+        # Extract description from package.json
+        pkg_json = path_obj / "package.json"
+        if pkg_json.exists():
+            try:
+                import json
+                data = json.loads(pkg_json.read_text(errors="ignore"))
+                if data.get("description"):
+                    hints.append(f"package.json description: {data['description']}")
+                if data.get("keywords"):
+                    hints.append(f"package.json keywords: {', '.join(data['keywords'])}")
+            except Exception:
+                pass
+        
+        # Extract description from setup.py / pyproject.toml
+        setup_py = path_obj / "setup.py"
+        if setup_py.exists():
+            try:
+                content = setup_py.read_text(errors="ignore")
+                # Look for description= in setup()
+                for line in content.splitlines():
+                    if "description=" in line or "description =" in line:
+                        hints.append(f"setup.py: {line.strip()}")
+                        break
+            except Exception:
+                pass
+        
+        pyproject = path_obj / "pyproject.toml"
+        if pyproject.exists():
+            try:
+                content = pyproject.read_text(errors="ignore")
+                for line in content.splitlines():
+                    if line.strip().startswith("description"):
+                        hints.append(f"pyproject.toml: {line.strip()}")
+                        break
+            except Exception:
+                pass
+        
+        # Extract top-level docstrings from main entry files
+        for entry_name in ["main.py", "app.py", "index.py", "cli.py", "server.py", "src/index.ts", "src/main.ts"]:
+            entry_file = path_obj / entry_name
+            if entry_file.exists():
+                try:
+                    content = entry_file.read_text(errors="ignore")[:500]
+                    # Check for module-level docstring
+                    lines = content.splitlines()
+                    for line in lines[:10]:
+                        stripped = line.strip()
+                        if stripped.startswith('"""') or stripped.startswith("'''"):
+                            hints.append(f"{entry_name} docstring: {stripped}")
+                        elif stripped.startswith("//") or stripped.startswith("#"):
+                            if len(stripped) > 5:  # Skip trivial comments
+                                hints.append(f"{entry_name} header: {stripped}")
+                except Exception:
+                    pass
+        
+        return hints
