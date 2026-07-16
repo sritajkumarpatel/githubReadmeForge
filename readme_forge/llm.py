@@ -123,6 +123,8 @@ class LLMClient:
         # Detect if it's the analyzer requesting JSON structure
         if "improvement points" in user_prompt.lower() or "list_improvements" in system_prompt.lower() or response_format_json:
             mock_analysis = {
+                "project_type": "application",
+                "project_type_reason": "This is a full-featured CLI and web application with multiple components (agents, server, CLI), suitable for comprehensive documentation.",
                 "tech_stack": ["Python 3.10+", "Rich CLI", "Multi-LLM (Gemini/OpenAI/Claude/Ollama)", "HTTP Server"],
                 "project_persona": "An AI-powered multi-agent CLI & web tool that analyzes codebases and generates professional, narrative-driven README.md files with interactive HTML showcases.",
                 "problem_statement": "Developers spend hours writing and maintaining README documentation that quickly becomes outdated. New contributors bounce from repos with poor or missing docs, and great code goes unused because nobody understands what it does or how to use it.",

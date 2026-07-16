@@ -17,6 +17,8 @@ class AnalyzerAgent:
             "\n"
             "JSON Response Schema:\n"
             "{\n"
+            "  \"project_type\": \"One of: learning, library, application, cli, api, minimal. Choose the most accurate type.\",\n"
+            "  \"project_type_reason\": \"Brief explanation of why this type was selected.\",\n"
             "  \"tech_stack\": [\"List of specific languages, frameworks, and major dependencies detected\"],\n"
             "  \"project_persona\": \"A clear, compelling 1-2 sentence description of what this project does and who it is for.\",\n"
             "  \"problem_statement\": \"What specific pain point or problem does this project solve? Write 2-3 sentences describing the problem from the user's perspective.\",\n"
@@ -65,6 +67,14 @@ class AnalyzerAgent:
             "    }\n"
             "  ]\n"
             "}\n"
+            "\n"
+            "PROJECT TYPE GUIDELINES:\n"
+            "- learning: Tutorial projects, starter templates, educational code. Keep README simple and focused on learning.\n"
+            "- library: Reusable packages/modules published to npm/pypi/crates.io. Focus on API reference, installation, and usage examples.\n"
+            "- application: Full web/desktop applications with multiple features. Comprehensive docs with all sections.\n"
+            "- cli: Command-line tools. Focus on commands, flags, and usage examples.\n"
+            "- api: Backend API services. Focus on endpoints, authentication, and request/response examples.\n"
+            "- minimal: Small utility scripts or single-file projects. Concise README is sufficient.\n"
             "\n"
             "IMPORTANT RULES:\n"
             "- key_features: Extract at least 3-5 real features from the code. Do NOT invent features that aren't in the codebase.\n"
@@ -134,6 +144,8 @@ class AnalyzerAgent:
             # Return basic fallback structure in case LLM outputs invalid JSON
             print(f"[Analyzer] Warning: Failed to parse LLM analysis JSON: {e}")
             return {
+                "project_type": "application",
+                "project_type_reason": "Default classification based on available information.",
                 "tech_stack": ["Detected from files"],
                 "project_persona": "A software codebase project",
                 "problem_statement": "This project addresses a specific developer need.",

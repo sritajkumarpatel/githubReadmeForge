@@ -75,6 +75,65 @@ class WriterAgent:
             else:
                 lang_switcher = f"English · **{lang.upper()}**"
 
+        # Project type instructions
+        project_type = analysis.get("project_type", "application")
+        project_type_reason = analysis.get("project_type_reason", "")
+
+        project_type_instruction = ""
+        if project_type == "learning":
+            project_type_instruction = (
+                "PROJECT TYPE: LEARNING/TUTORIAL\n"
+                "- Keep the README focused on teaching and learning\n"
+                "- Use simple, clear language\n"
+                "- Include step-by-step instructions\n"
+                "- Prioritize 'How to Learn' section with learning path\n"
+                "- Omit complex architecture diagrams - focus on simple flow\n"
+                "- Include common pitfalls and how to avoid them\n"
+            )
+        elif project_type == "library":
+            project_type_instruction = (
+                "PROJECT TYPE: LIBRARY/PACKAGE\n"
+                "- Focus on installation, quick start, and API reference\n"
+                "- Include complete usage examples with code snippets\n"
+                "- Document all public functions/classes with parameters\n"
+                "- Add changelog and version information\n"
+                "- Omit lengthy problem/solution narratives\n"
+            )
+        elif project_type == "cli":
+            project_type_instruction = (
+                "PROJECT TYPE: COMMAND-LINE TOOL\n"
+                "- Prioritize CLI commands and flags front-and-center\n"
+                "- Include a quick command reference table at top\n"
+                "- Show before/after examples of command usage\n"
+                "- Document all available commands and options\n"
+                "- Omit detailed architecture diagrams\n"
+            )
+        elif project_type == "api":
+            project_type_instruction = (
+                "PROJECT TYPE: API SERVICE\n"
+                "- Focus on endpoints, authentication, and request/response formats\n"
+                "- Include example API calls with curl commands\n"
+                "- Document rate limits, error codes, and status responses\n"
+                "- Add authentication/authorization details prominently\n"
+                "- Include Postman or API testing instructions\n"
+            )
+        elif project_type == "minimal":
+            project_type_instruction = (
+                "PROJECT TYPE: MINIMAL/SMALL UTILITY\n"
+                "- Keep README very concise - 10 lines or less\n"
+                "- Include only: What it does, How to use, Quick example\n"
+                "- Skip detailed features, architecture, and multiple sections\n"
+                "- Use direct, no-frills formatting\n"
+            )
+        else:  # application
+            project_type_instruction = (
+                "PROJECT TYPE: FULL APPLICATION\n"
+                "- Comprehensive documentation with all sections\n"
+                "- Include complete feature list and architecture\n"
+                "- Document configuration, deployment, and troubleshooting\n"
+                "- Add contributing guidelines and license\n"
+            )
+
         # Build rich context from analysis data
         features_context = ""
         for feat in analysis.get("key_features", []):
@@ -101,6 +160,7 @@ class WriterAgent:
             "- A great README tells a STORY: Problem → Solution → How It Works → Features → Get Started.\n"
             "- Every section must have DEPTH and SPECIFICITY. No generic filler text.\n"
             "- Extract REAL details from the codebase — real file names, real commands, real config variables.\n\n"
+            f"Project Type Context:\n{project_type_instruction}\n\n"
             f"Formatting Theme instructions:\n{style_instruction}\n\n"
             f"Language settings:\n{lang_instruction}\n\n"
             "CRITICAL GUARDRAIL:\n"
@@ -159,6 +219,7 @@ class WriterAgent:
         user_prompt = (
             f"Here is the context of the codebase:\n"
             f"Path: {scan_results.get('path')}\n"
+            f"Project Type: {project_type} - {project_type_reason}\n"
             f"File Tree Structure:\n{scan_results.get('tree')}\n\n"
             f"Tech Stack analyzed: {analysis.get('tech_stack')}\n"
             f"Project Persona: {analysis.get('project_persona')}\n"

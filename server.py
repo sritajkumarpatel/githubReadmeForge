@@ -61,6 +61,8 @@ class APIRequestHandler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "application/javascript; charset=utf-8")
             elif suffix == ".json":
                 self.send_header("Content-Type", "application/json; charset=utf-8")
+            elif suffix == ".svg":
+                self.send_header("Content-Type", "image/svg+xml; charset=utf-8")
             else:
                 self.send_header("Content-Type", "application/octet-stream")
                 
@@ -112,11 +114,12 @@ class APIRequestHandler(BaseHTTPRequestHandler):
                 old_keys[env_var] = os.environ.get(env_var)
                 os.environ[env_var] = api_key
 
-        reader = ReaderAgent(target_path)
+        reader = None
         try:
+            reader = ReaderAgent(target_path)
             reader.setup()
             scan_results = reader.scan_codebase()
-            
+
             # Instantiate LLM client and analyze
             llm_client = LLMClient(provider=provider, model=model, api_key=api_key)
             analyzer = AnalyzerAgent(llm_client)
@@ -135,9 +138,11 @@ class APIRequestHandler(BaseHTTPRequestHandler):
             import traceback
             print("[Server Error] Exception in /api/analyze:")
             traceback.print_exc()
-            self._send_json({"success": False, "error": str(e)}, 500)
+            error_msg = str(e)
+            self._send_json({"success": False, "error": error_msg}, 500)
         finally:
-            reader.cleanup()
+            if reader:
+                reader.cleanup()
             # Restore environment keys
             for k, val in old_keys.items():
                 if val is None:

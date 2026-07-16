@@ -13,23 +13,41 @@ class ReaderAgent:
     def setup(self):
         """Prepare the codebase. Clones if target is a URL, else uses the local path."""
         target = self.target_path_or_url.strip()
-        
+
         # Check if URL
         if target.startswith("http://") or target.startswith("https://") or target.endswith(".git"):
             print(f"[Reader] Cloning repository from {target}...")
             temp_dir = tempfile.mkdtemp(prefix="readme_forge_clone_")
             try:
-                subprocess.run(
+                result = subprocess.run(
                     ["git", "clone", "--depth", "1", target, temp_dir],
-                    check=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
+                    capture_output=True,
+                    text=True
                 )
+                if result.returncode != 0:
+                    error_msg = result.stderr.strip() if result.stderr else "Unknown git error"
+                    if "Authentication failed" in error_msg or "permission denied" in error_msg.lower():
+                        raise RuntimeError(f"Authentication failed: Invalid or missing GitHub credentials for private repository.")
+                    elif "not found" in error_msg.lower() or "does not exist" in error_msg.lower():
+                        raise RuntimeError(f"Repository not found: The specified GitHub URL does not exist or is not accessible.")
+                    elif "rate limit" in error_msg.lower():
+                        raise RuntimeError(f"GitHub rate limit exceeded. Please try again later or provide a personal access token.")
+                    else:
+                        raise RuntimeError(f"Git clone failed: {error_msg}")
+
+                # Validate cloned directory has content
+                cloned_path = Path(temp_dir)
+                files = list(cloned_path.rglob('*'))
+                if len(files) < 3:
+                    raise RuntimeError(f"Clone completed but repository appears empty or invalid.")
+
                 self.local_path = temp_dir
                 self.is_temp = True
                 print("[Reader] Clone successful.")
+            except RuntimeError:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                raise
             except Exception as e:
-                # Clean up and raise
                 shutil.rmtree(temp_dir, ignore_errors=True)
                 raise RuntimeError(f"Failed to clone repository: {e}")
         else:
