@@ -63,3 +63,13 @@ def test_plan_only_includes_sections_with_supporting_facts():
     assert "architecture" not in plan["sections"]
     assert "api_reference" not in plan["sections"]
     assert plan["include_architecture_diagram"] is False
+
+
+def test_plain_html_dashboard_is_classified_as_ui_first_application():
+    scan = _scan({"server.py": "from http.server import HTTPServer"})
+    scan["tree"] = "repo/\n├── server.py\n└── web/\n    ├── index.html\n    └── app.js"
+
+    result = classify_repository(scan)
+
+    assert result["primary_intent"] == "application"
+    assert "ui" in result["delivery_surfaces"]

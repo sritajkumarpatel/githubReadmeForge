@@ -322,6 +322,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
             self._send_json({
                 "success": True,
                 "readme": readme_md,
+                "visual_assets": analysis.get("visual_assets", {}),
             })
         except Exception as e:
             import traceback

@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from readme_forge.llm import LLMClient
 from readme_forge.agents.contracts import build_documentation_plan
+from readme_forge.visual_assets import VisualAssetGenerator
 
 
 class WriterAgent:
@@ -169,6 +170,7 @@ class WriterAgent:
         else:  # application
             project_type_instruction = (
                 "PROJECT TYPE: FULL APPLICATION\n"
+                "- Lead with the user-facing workflow and interface, not internal implementation details\n"
                 "- Comprehensive documentation with all sections\n"
                 "- Include complete feature list and architecture\n"
                 "- Document configuration, deployment, and troubleshooting\n"
@@ -242,6 +244,12 @@ class WriterAgent:
         plan_text = ", ".join(planned_sections) if planned_sections else "title, overview"
         evidence_only = bool(documentation_plan.get("evidence_only"))
         architecture_diagram = bool(documentation_plan.get("include_architecture_diagram"))
+        visual_intro = ""
+        if style == "visual_rich" and output_dir:
+            visual_generator = VisualAssetGenerator(Path(output_dir))
+            visual_assets = visual_generator.generate(analysis)
+            analysis["visual_assets"] = visual_assets
+            visual_intro = visual_generator.markdown_intro(visual_assets)
 
         system_prompt = (
             "You are an expert technical writer and product storyteller.\n"
@@ -287,7 +295,9 @@ class WriterAgent:
             "   - Pull real names from the codebase: class names, protocol names, pipeline stage names.\n"
             "   - SKIP this section for cli, minimal, learning, poc project types.\n\n"
             "6. **How It Works** (ONLY if included in the documentation plan):\n"
-            "   a) **Architecture Diagram** (ONLY when the plan enables it — use this EXACT Mermaid syntax):\n"
+            "   a) **Architecture Diagram**:\n"
+            "      - If visual_assets includes an architecture SVG, reference that existing asset and do NOT generate a second Mermaid diagram.\n"
+            "      - Otherwise, only when the plan enables it, use this EXACT concise Mermaid syntax:\n"
             "      ```mermaid\n"
             "      flowchart TD\n"
             "          A[ComponentName] --> B[ComponentName]\n"
@@ -299,17 +309,16 @@ class WriterAgent:
             "      - Use `flowchart TD` (NOT `graph TD`).\n"
             "      - Node labels MUST be in square brackets: A[Label]. NO parentheses.\n"
             "      - Use REAL component/file names from the codebase (e.g. `ReaderAgent`, `server.py`, `WriterAgent`).\n"
-            "      - Maximum 10 nodes. Keep it readable.\n"
-            "      - Use `subgraph` blocks if the project has clear layers (e.g. 'Agent Pipeline', 'API Layer').\n"
-            "      - Example subgraph syntax: subgraph Pipeline\\n  A --> B\\nend\n"
+            "      - Maximum 5 nodes and 4 arrows. Show only the user-critical path.\n"
+            "      - Never show utility files, helpers, wrappers, or every dependency merely because they exist.\n"
             "      - NEVER use parentheses in node labels — they break Mermaid. Escape or remove them.\n\n"
             "   b) **How It Works — Step-by-Step**:\n"
             "      After the diagram, write a numbered walkthrough:\n"
             "      1. **Step N — Name**: What triggers or initiates this step (use real file/function names).\n"
             "      Each step must reference ACTUAL component names, not generic ones like 'the system'.\n"
             "      Minimum 3 steps, maximum 7.\n\n"
-            "   c) **Component Table**: A markdown table with columns: Component | File | Role | Input | Output.\n"
-            "      Populate from the `architecture_layers` and `connections` analysis data.\n\n"
+            "   c) **Component Table**: Include only when it adds information not visible in the diagram.\n"
+            "      Limit to 3-5 user-meaningful components and use: Component | Role | Input | Output.\n\n"
             "7. **Features**: Create a clean feature list:\n"
             "   - A bold feature name as a sub-heading (### Feature Name)\n"
             "   - A 2-3 sentence description explaining what it does and why it matters\n"
@@ -349,6 +358,7 @@ class WriterAgent:
             f"Architecture diagram enabled: {architecture_diagram}\n"
             f"Evidence-only mode: {evidence_only}\n"
             f"Classification: {analysis.get('classification', {})}\n"
+            f"Visual assets already generated: {analysis.get('visual_assets', {})}\n"
             f"File Tree Structure:\n{scan_results.get('tree')}\n\n"
             f"Tech Stack analyzed: {analysis.get('tech_stack')}\n"
             f"Project Persona: {analysis.get('project_persona')}\n"
@@ -396,6 +406,8 @@ class WriterAgent:
             user_prompt += f"\nHere is the existing README content for reference:\n{scan_results.get('existing_readme')}\n"
 
         readme_markdown = self.llm_client.generate(system_prompt, user_prompt)
+        if visual_intro and "assets/readme/brand-light.svg" not in readme_markdown:
+            return f"{visual_intro}\n\n{readme_markdown.lstrip()}"
         return readme_markdown
 
     def _format_connections(self, connections):

@@ -71,16 +71,26 @@ def classify_repository(scan_results: dict[str, Any]) -> dict[str, Any]:
         if signal in joined_code or signal in tree:
             add_surface("ui", "source code" if signal in joined_code else "repository tree", signal)
             break
+    else:
+        # A plain HTML/JavaScript dashboard is still a UI application even when
+        # it does not use a named frontend framework.
+        ui_files = ("web/", "public/", "index.html", "app.js", "app.ts")
+        for signal in ui_files:
+            if signal in tree:
+                add_surface("ui", "repository tree", signal)
+                break
 
     tutorial_terms = ("tutorial", "course", "exercise", "practice", "workshop", "example")
     intent = "application"
     if any(term in tree for term in tutorial_terms):
         intent = "learning"
         evidence.append({"claim": "intent:learning", "source": "repository tree", "signal": "tutorial-like name"})
-    elif len(code_context) <= 2 and "package" not in surfaces:
+    elif len(code_context) <= 2 and not ({"package", "ui"} & set(surfaces)):
         intent = "minimal"
         evidence.append({"claim": "intent:minimal", "source": "source inventory", "signal": "two or fewer scanned source files"})
-    elif "package" in surfaces and not ({"cli", "api", "ui"} & set(surfaces)):
+    elif "ui" in surfaces:
+        intent = "application"
+    elif "package" in surfaces and not ({"cli", "api"} & set(surfaces)):
         intent = "library"
     elif "api" in surfaces and "ui" not in surfaces:
         intent = "api"
