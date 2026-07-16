@@ -1,7 +1,8 @@
-# Python
+# ─── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
 *.so
 *.egg-info/
 *.egg
@@ -9,33 +10,54 @@ dist/
 build/
 eggs/
 *.whl
+.python-version
 
-# Virtual environments
+# ─── Virtual Environments ─────────────────────────────────────────────────────
 venv/
 .venv/
 env/
 ENV/
 
-# Environment variables
+# ─── Environment Variables ────────────────────────────────────────────────────
 .env
 .env.local
 .env.*.local
 
-# IDE
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+server.log
+
+# ─── Testing & Coverage ───────────────────────────────────────────────────────
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+
+# ─── IDEs & Editors ───────────────────────────────────────────────────────────
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 *~
+*.sublime-project
+*.sublime-workspace
 
-# OS
+# ─── OS ───────────────────────────────────────────────────────────────────────
 .DS_Store
+**/.DS_Store
 Thumbs.db
 
-# Generated output
-readme_forge_output/
+# ─── Generated Output (runtime artifacts, never commit) ───────────────────────
+readme_forge_output/*
+!readme_forge_output/.gitkeep
+assets/*
+!assets/.gitkeep
 showroom.html
-server.log
 
-# Temporary clone directories
-readme_forge_clone_*
+# ─── Temporary Clone Directories ──────────────────────────────────────────────
+/tmp/readme_forge_clone_*
+readme_forge_clone_*/

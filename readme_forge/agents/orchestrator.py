@@ -10,12 +10,15 @@ from readme_forge.agents.analyzer import AnalyzerAgent
 from readme_forge.agents.writer import WriterAgent
 
 class Orchestrator:
-    def __init__(self, target_path_or_url, provider=None, model=None, instant=False, lang="en"):
+    def __init__(self, target_path_or_url, provider=None, model=None, instant=False, lang="en",
+                 style="visual_rich", output_dir=None):
         self.target_path_or_url = target_path_or_url
         self.instant = instant
         self.lang = lang or "en"
+        self.style = style or "visual_rich"
+        self.output_dir_override = output_dir  # Path or None
         self.console = Console()
-        
+
         self.llm_client = LLMClient(provider=provider, model=model)
         self.reader = ReaderAgent(target_path_or_url)
         self.analyzer = AnalyzerAgent(self.llm_client)
@@ -79,19 +82,24 @@ class Orchestrator:
             ) as progress:
                 progress.add_task(description="Forging README.md and Showroom HTML...", total=None)
                 
-                # Determine output_dir
-                output_dir = Path(self.reader.local_path)
-                if self.reader.is_temp:
+                # Determine output directory (override > local path > readme_forge_output for remotes)
+                if self.output_dir_override:
+                    output_dir = Path(self.output_dir_override)
+                    output_dir.mkdir(parents=True, exist_ok=True)
+                elif self.reader.is_temp:
                     output_dir = Path("./readme_forge_output")
                     output_dir.mkdir(exist_ok=True)
-                
+                else:
+                    output_dir = Path(self.reader.local_path)
+
                 readme_md = self.writer.generate_readme(
                     scan_results=scan_results,
                     analysis=analysis,
                     interactive_answers=interactive_answers,
+                    style=self.style,
                     output_dir=output_dir,
                     target_path_or_url=self.target_path_or_url,
-                    lang=self.lang
+                    lang=self.lang,
                 )
                 showroom_html = self.writer.generate_showroom_html(readme_md, analysis)
 
@@ -100,12 +108,14 @@ class Orchestrator:
             # If target is remote (git url), reader.local_path points to temp dir.
             # We can save it in the current working directory, or target path.
             # Let's save in reader.local_path or output to user's local path if specified.
-            output_dir = Path(self.reader.local_path)
-            
-            # If it's cloned/temporary, let's write to output folder in current dir
-            if self.reader.is_temp:
+            if self.output_dir_override:
+                output_dir = Path(self.output_dir_override)
+                output_dir.mkdir(parents=True, exist_ok=True)
+            elif self.reader.is_temp:
                 output_dir = Path("./readme_forge_output")
                 output_dir.mkdir(exist_ok=True)
+            else:
+                output_dir = Path(self.reader.local_path)
                 
             readme_path = output_dir / "README.md"
             showroom_path = output_dir / "showroom.html"

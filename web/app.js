@@ -9,6 +9,59 @@ let providerConfig = {
     ollama_host: 'http://localhost:11434'
 };
 
+// ── localStorage persistence keys ─────────────────────────────────────────
+const LS_PROVIDER = 'rmf_provider';
+const LS_MODEL    = 'rmf_model';
+const LS_HOST     = 'rmf_ollama_host';
+// NOTE: api_key is intentionally NOT persisted for security
+
+function _saveProviderPrefs() {
+    try {
+        localStorage.setItem(LS_PROVIDER, providerConfig.provider);
+        localStorage.setItem(LS_MODEL,    providerConfig.model);
+        localStorage.setItem(LS_HOST,     providerConfig.ollama_host || '');
+    } catch (e) { /* private browsing — ignore */ }
+}
+
+function _restoreProviderPrefs() {
+    try {
+        const provider = localStorage.getItem(LS_PROVIDER);
+        const model    = localStorage.getItem(LS_MODEL);
+        const host     = localStorage.getItem(LS_HOST);
+
+        if (provider) {
+            const sel = document.getElementById('provider-select');
+            if (sel) {
+                sel.value = provider;
+                handleProviderChange(); // show/hide api-key / host fields
+            }
+        }
+        if (model) {
+            const ms = document.getElementById('model-select');
+            if (ms) {
+                // Add option if not present (saved model may not be in the default list)
+                if (!ms.querySelector(`option[value="${model}"]`)) {
+                    const opt = document.createElement('option');
+                    opt.value = model;
+                    opt.textContent = model;
+                    ms.appendChild(opt);
+                }
+                ms.value = model;
+            }
+        }
+        if (host) {
+            const hi = document.getElementById('ollama-host-input');
+            if (hi) hi.value = host;
+        }
+    } catch (e) { /* ignore */ }
+}
+
+// ── Contextual error hints from server error_type ─────────────────────────
+function _getErrorMessage(data) {
+    const hint = data.hint ? `\n\n💡 ${data.hint}` : '';
+    return (data.error || 'An unknown error occurred.') + hint;
+}
+
 // Initialize marked
 marked.setOptions({
     breaks: true,
@@ -19,6 +72,11 @@ marked.setOptions({
 mermaid.initialize({
     startOnLoad: false,
     theme: 'dark'
+});
+
+// Restore saved provider prefs once DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    _restoreProviderPrefs();
 });
 
 // STEP NAVIGATION
@@ -154,6 +212,7 @@ function validateLLMConfig() {
         opencode_host: opencodeHost
     };
 
+    _saveProviderPrefs(); // persist non-sensitive prefs
     goToStep(3);
 }
 
@@ -429,106 +488,141 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// ─── Compare Tab — Side-by-Side Rendered View ─────────────────────────────
+
 function computeAndRenderDiff(newReadme) {
     const oldReadme = scanContext?.existing_readme || '';
-    const oldSide = document.getElementById('diff-old');
-    const newSide = document.getElementById('diff-new');
-    const summaryContent = document.getElementById('diff-summary-content');
+    const bodyOld = document.getElementById('diff-body-old');
+    const bodyNew = document.getElementById('diff-body-new');
 
+    // Word-count helper
+    const wordCount = str => str.trim() ? str.trim().split(/\s+/).length : 0;
+
+    const wcOld = wordCount(oldReadme);
+    const wcNew = wordCount(newReadme);
+
+    // Update stats bar word counts
+    document.getElementById('diff-wc-old').textContent = wcOld.toLocaleString() + ' words';
+    document.getElementById('diff-wc-new').textContent = wcNew.toLocaleString() + ' words';
+    document.getElementById('diff-col-wc-old').textContent = wcOld.toLocaleString() + ' words';
+    document.getElementById('diff-col-wc-new').textContent = wcNew.toLocaleString() + ' words';
+
+    // Section extractor: returns array of heading strings (## foo)
+    function extractSections(md) {
+        return md.split('\n')
+            .filter(l => /^#{1,3}\s/.test(l.trim()))
+            .map(l => l.trim().replace(/^#+\s*/, '').toLowerCase());
+    }
+
+    const oldSections = new Set(extractSections(oldReadme));
+    const newSections  = extractSections(newReadme);
+
+    const addedSections   = newSections.filter(s => !oldSections.has(s));
+    const removedSections = [...oldSections].filter(s => !newSections.includes(s));
+
+    // Update stats bar counts
+    document.getElementById('diff-stat-added-count').textContent   = addedSections.length;
+    document.getElementById('diff-stat-removed-count').textContent = removedSections.length;
+
+    // ── Render OLD column ──────────────────────────────────────────────────
     if (!oldReadme || oldReadme.trim() === '') {
-        document.getElementById('diff-summary-content').innerHTML =
-            '<div style="padding: 20px; color: var(--text-secondary);">No existing README found to compare. This is a new README generation.</div>';
-        oldSide.innerHTML = '<div style="padding: 20px; color: var(--text-secondary);">No original README.</div>';
-        newSide.innerHTML = escapeHtml(newReadme);
-        return;
-    }
-
-    // Render both versions
-    oldSide.innerHTML = escapeHtml(oldReadme);
-    newSide.innerHTML = escapeHtml(newReadme);
-
-    // Compute diff for summary
-    const diff = computeDiff(oldReadme.split('\n'), newReadme.split('\n'));
-    const summary = summarizeChanges(diff);
-    renderSummary(summary, summaryContent);
-}
-
-function summarizeChanges(diff) {
-    const changes = [];
-    let currentSection = null;
-    const sectionKeywords = ['#', '##', '###', '**', 'Features', 'Installation', 'Usage', 'Configuration', 'License', 'Contributing', 'FAQ', 'Getting Started', 'Prerequisites', 'Setup'];
-
-    diff.forEach(part => {
-        if (part.type === 'removed' || part.type === 'added') {
-            const text = part.value.trim();
-            // Check if it's a header
-            const isHeader = sectionKeywords.some(kw => text.startsWith(kw));
-            if (isHeader) {
-                if (currentSection) {
-                    changes.push(currentSection);
-                }
-                currentSection = {
-                    title: text.substring(0, 60),
-                    type: part.type,
-                    lines: []
-                };
-            } else if (currentSection) {
-                currentSection.lines.push({ type: part.type, text: text.substring(0, 80) });
-            } else {
-                currentSection = {
-                    title: 'Other changes',
-                    type: part.type,
-                    lines: [{ type: part.type, text: text.substring(0, 80) }]
-                };
-            }
-        }
-    });
-
-    if (currentSection) {
-        changes.push(currentSection);
-    }
-
-    return changes.slice(0, 10);
-}
-
-function renderSummary(summary, container) {
-    if (!summary || summary.length === 0) {
-        container.innerHTML = '<div style="color: var(--text-secondary);">No significant changes detected.</div>';
-        return;
-    }
-
-    let html = '';
-    summary.forEach(item => {
-        const icon = item.type === 'added' ? '+' : '-';
-        const cls = item.type === 'added' ? 'added' : 'removed';
-        html += `<div class="change-item ${cls}">
-            <div class="change-title">${icon} ${escapeHtml(item.title)}</div>`;
-        if (item.lines && item.lines.length > 0) {
-            html += `<div class="change-desc">${escapeHtml(item.lines[0].text)}</div>`;
-        }
-        html += '</div>';
-    });
-
-    container.innerHTML = html;
-}
-
-function switchDiffTab(tab) {
-    const oldSide = document.getElementById('diff-old');
-    const newSide = document.getElementById('diff-new');
-    const tabs = document.querySelectorAll('.diff-tab');
-
-    tabs.forEach(t => t.classList.remove('active'));
-    if (tab === 'old') {
-        oldSide.style.display = 'block';
-        newSide.style.display = 'none';
-        tabs[0].classList.add('active');
+        bodyOld.innerHTML = `
+            <div class="diff-empty-state">
+                <div class="diff-empty-state-icon">📭</div>
+                <strong>No original README found</strong>
+                <span>This is a freshly generated README — nothing to compare against.</span>
+            </div>`;
+        document.getElementById('diff-col-wc-old').textContent = '—';
+        document.getElementById('diff-wc-old').textContent = '—';
     } else {
-        oldSide.style.display = 'none';
-        newSide.style.display = 'block';
-        tabs[1].classList.add('active');
+        bodyOld.innerHTML = typeof marked !== 'undefined'
+            ? marked.parse(oldReadme)
+            : '<pre>' + escapeHtml(oldReadme) + '</pre>';
     }
+
+    // ── Render NEW column (with section highlights) ────────────────────────
+    // We inject a marker span before each new-only heading so CSS can highlight it
+    let annotatedNew = newReadme;
+    if (addedSections.length > 0) {
+        // Wrap headings that are new with a sentinel comment we'll handle post-render
+        annotatedNew = newReadme.split('\n').map(line => {
+            const stripped = line.trim().replace(/^#+\s*/, '').toLowerCase();
+            if (/^#{1,3}\s/.test(line.trim()) && addedSections.includes(stripped)) {
+                return `<!-- NEW_SECTION_START -->\n${line}`;
+            }
+            return line;
+        }).join('\n');
+    }
+
+    if (typeof marked !== 'undefined') {
+        bodyNew.innerHTML = marked.parse(annotatedNew);
+    } else {
+        bodyNew.innerHTML = '<pre>' + escapeHtml(newReadme) + '</pre>';
+    }
+
+    // Post-process: find comment nodes left in DOM and wrap siblings in highlight span
+    // (marked.js strips comments, so we use a different approach: scan headings directly)
+    if (addedSections.length > 0) {
+        const headings = bodyNew.querySelectorAll('h1, h2, h3');
+        headings.forEach(h => {
+            const text = h.textContent.trim().toLowerCase();
+            if (addedSections.includes(text)) {
+                h.classList.add('diff-new-section');
+            }
+        });
+    }
+
+    // Render any mermaid blocks in both columns
+    if (typeof mermaid !== 'undefined') {
+        [bodyOld, bodyNew].forEach(container => {
+            container.querySelectorAll('pre code').forEach(block => {
+                const lang = block.className || '';
+                if (lang.includes('mermaid') || block.textContent.trim().startsWith('flowchart') || block.textContent.trim().startsWith('graph')) {
+                    const div = document.createElement('div');
+                    div.className = 'mermaid';
+                    div.textContent = block.textContent;
+                    block.parentElement.replaceWith(div);
+                }
+            });
+            try {
+                mermaid.run({ nodes: container.querySelectorAll('.mermaid') }).catch(() => {});
+            } catch (e) {}
+        });
+    }
+
+    // ── Synchronized scrolling ─────────────────────────────────────────────
+    _initDiffSyncScroll(bodyOld, bodyNew);
 }
 
+function _initDiffSyncScroll(panelA, panelB) {
+    // Remove previous listeners by cloning
+    const newA = panelA.cloneNode(true);
+    const newB = panelB.cloneNode(true);
+    panelA.parentNode.replaceChild(newA, panelA);
+    panelB.parentNode.replaceChild(newB, panelB);
+
+    let isSyncing = false;
+
+    newA.addEventListener('scroll', () => {
+        if (isSyncing) return;
+        isSyncing = true;
+        const ratio = newA.scrollTop / Math.max(1, newA.scrollHeight - newA.clientHeight);
+        newB.scrollTop = ratio * (newB.scrollHeight - newB.clientHeight);
+        requestAnimationFrame(() => { isSyncing = false; });
+    });
+
+    newB.addEventListener('scroll', () => {
+        if (isSyncing) return;
+        isSyncing = true;
+        const ratio = newB.scrollTop / Math.max(1, newB.scrollHeight - newB.clientHeight);
+        newA.scrollTop = ratio * (newA.scrollHeight - newA.clientHeight);
+        requestAnimationFrame(() => { isSyncing = false; });
+    });
+
+    document.getElementById('diff-sbs-container')?.classList.add('synced');
+}
+
+// Keep computeDiff for any future use but it's no longer called by the UI
 function computeDiff(oldLines, newLines) {
     const result = [];
     const m = oldLines.length;
@@ -549,8 +643,7 @@ function computeDiff(oldLines, newLines) {
     while (i > 0 || j > 0) {
         if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
             result.unshift({ type: 'context', value: oldLines[i - 1] });
-            i--;
-            j--;
+            i--; j--;
         } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
             result.unshift({ type: 'added', value: newLines[j - 1] });
             j--;

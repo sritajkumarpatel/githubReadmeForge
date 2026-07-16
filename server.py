@@ -170,12 +170,62 @@ class APIRequestHandler(BaseHTTPRequestHandler):
                 "scan": scan_results,
                 "analysis": analysis
             })
+        except FileNotFoundError as e:
+            self._send_json({
+                "success": False,
+                "error_type": "scan_error",
+                "error": f"Path not found: {e}",
+                "hint": "Check that the path exists and is readable."
+            }, 404)
+        except RuntimeError as e:
+            error_msg = str(e)
+            if "Authentication failed" in error_msg or "credentials" in error_msg.lower():
+                self._send_json({
+                    "success": False,
+                    "error_type": "auth_error",
+                    "error": error_msg,
+                    "hint": "Check that your GitHub credentials or access token are valid for this repository."
+                }, 401)
+            elif "not found" in error_msg.lower() or "does not exist" in error_msg.lower():
+                self._send_json({
+                    "success": False,
+                    "error_type": "clone_error",
+                    "error": error_msg,
+                    "hint": "Verify the repository URL is correct and publicly accessible."
+                }, 404)
+            else:
+                self._send_json({
+                    "success": False,
+                    "error_type": "scan_error",
+                    "error": error_msg,
+                    "hint": "An error occurred while scanning the repository."
+                }, 500)
         except Exception as e:
             import traceback
-            print("[Server Error] Exception in /api/analyze:")
             traceback.print_exc()
             error_msg = str(e)
-            self._send_json({"success": False, "error": error_msg}, 500)
+            # Classify common LLM errors
+            if "api key" in error_msg.lower() or "apikey" in error_msg.lower() or "401" in error_msg:
+                self._send_json({
+                    "success": False,
+                    "error_type": "auth_error",
+                    "error": "Invalid or missing API key.",
+                    "hint": "Check your API key in the provider settings."
+                }, 401)
+            elif "quota" in error_msg.lower() or "rate limit" in error_msg.lower():
+                self._send_json({
+                    "success": False,
+                    "error_type": "rate_limit",
+                    "error": "API rate limit or quota exceeded.",
+                    "hint": "Wait a moment and try again, or upgrade your API plan."
+                }, 429)
+            else:
+                self._send_json({
+                    "success": False,
+                    "error_type": "server_error",
+                    "error": error_msg,
+                    "hint": "An unexpected error occurred during analysis."
+                }, 500)
         finally:
             if reader:
                 reader.cleanup()
@@ -265,9 +315,36 @@ class APIRequestHandler(BaseHTTPRequestHandler):
             })
         except Exception as e:
             import traceback
-            print("[Server Error] Exception in /api/generate:")
             traceback.print_exc()
-            self._send_json({"success": False, "error": str(e)}, 500)
+            error_msg = str(e)
+            if "api key" in error_msg.lower() or "apikey" in error_msg.lower() or "401" in error_msg:
+                self._send_json({
+                    "success": False,
+                    "error_type": "auth_error",
+                    "error": "Invalid or missing API key.",
+                    "hint": "Check your API key in the provider settings panel."
+                }, 401)
+            elif "quota" in error_msg.lower() or "rate limit" in error_msg.lower():
+                self._send_json({
+                    "success": False,
+                    "error_type": "rate_limit",
+                    "error": "API rate limit or quota exceeded.",
+                    "hint": "Wait a moment and try again, or upgrade your API plan."
+                }, 429)
+            elif "max_tokens" in error_msg.lower() or "context length" in error_msg.lower():
+                self._send_json({
+                    "success": False,
+                    "error_type": "token_limit",
+                    "error": "The repository is too large for the selected model's context window.",
+                    "hint": "Try a model with a larger context window, or use a smaller repository."
+                }, 500)
+            else:
+                self._send_json({
+                    "success": False,
+                    "error_type": "generation_error",
+                    "error": error_msg,
+                    "hint": "An unexpected error occurred during README generation."
+                }, 500)
         finally:
             # Restore environment keys
             for k, val in old_keys.items():

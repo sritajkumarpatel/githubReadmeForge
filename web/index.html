@@ -290,19 +290,41 @@
                                 <div class="markdown-view" id="rendered-readme-body"></div>
                             </div>
 
-                            <!-- Diff View -->
+                            <!-- Diff View — Side-by-Side Rendered -->
                             <div class="out-tab-content" id="tab-diff-readme">
-                                <div class="diff-tabs">
-                                    <button class="diff-tab active" onclick="switchDiffTab('old')">Original README</button>
-                                    <button class="diff-tab" onclick="switchDiffTab('new')">Generated README</button>
+                                <!-- Stats bar -->
+                                <div class="diff-stats-bar" id="diff-stats-bar">
+                                    <span class="diff-stat-item" id="diff-stat-added">
+                                        <span class="diff-stat-dot added"></span>
+                                        <span id="diff-stat-added-count">—</span> sections added
+                                    </span>
+                                    <span class="diff-stat-sep">·</span>
+                                    <span class="diff-stat-item" id="diff-stat-removed">
+                                        <span class="diff-stat-dot removed"></span>
+                                        <span id="diff-stat-removed-count">—</span> sections removed
+                                    </span>
+                                    <span class="diff-stat-sep">·</span>
+                                    <span class="diff-stat-item neutral">
+                                        Word count <span id="diff-wc-old">—</span> → <span id="diff-wc-new">—</span>
+                                    </span>
                                 </div>
-                                <div class="diff-split-view">
-                                    <div class="diff-side" id="diff-old"></div>
-                                    <div class="diff-changes-summary" id="diff-summary">
-                                        <h4>Key Changes</h4>
-                                        <div id="diff-summary-content"></div>
+                                <!-- Side-by-side columns -->
+                                <div class="diff-sbs-container" id="diff-sbs-container">
+                                    <div class="diff-sbs-col" id="diff-sbs-old">
+                                        <div class="diff-col-header old">
+                                            <span class="diff-col-label">📄 Original README</span>
+                                            <span class="diff-col-wc" id="diff-col-wc-old"></span>
+                                        </div>
+                                        <div class="diff-col-body markdown-view" id="diff-body-old"></div>
                                     </div>
-                                    <div class="diff-side" id="diff-new" style="display:none;"></div>
+                                    <div class="diff-sbs-divider"></div>
+                                    <div class="diff-sbs-col" id="diff-sbs-new">
+                                        <div class="diff-col-header new">
+                                            <span class="diff-col-label">✨ Generated README</span>
+                                            <span class="diff-col-wc" id="diff-col-wc-new"></span>
+                                        </div>
+                                        <div class="diff-col-body markdown-view" id="diff-body-new"></div>
+                                    </div>
                                 </div>
                             </div>
 

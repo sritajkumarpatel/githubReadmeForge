@@ -27,13 +27,17 @@ class LLMClient:
             self.model = self.model or "anthropic/claude-3-5-sonnet-20241022"
 
     def is_configured(self):
+        if self.provider == "mock":
+            return True
         if self.provider == "ollama" or self.provider == "opencode":
             return bool(self.base_url)
         return bool(self.api_key)
 
     def get_available_models(self):
         """Fetch available models for the provider."""
-        if self.provider == "openai":
+        if self.provider == "mock":
+            return ["mock-model-1", "mock-model-2"]
+        elif self.provider == "openai":
             try:
                 from openai import OpenAI
                 client = OpenAI(api_key=self.api_key)
@@ -85,7 +89,9 @@ class LLMClient:
     def generate(self, system_prompt, user_prompt, response_format_json=False):
         """Generates text from the LLM, with support for JSON response format if supported/requested."""
         try:
-            if self.provider == "gemini":
+            if self.provider == "mock":
+                return self._mock_generate(system_prompt, user_prompt, response_format_json)
+            elif self.provider == "gemini":
                 return self._generate_gemini(system_prompt, user_prompt, response_format_json)
             elif self.provider == "openai":
                 return self._generate_openai(system_prompt, user_prompt, response_format_json)
@@ -139,7 +145,7 @@ class LLMClient:
         # System instructions go to the system param in Claude Messages API
         response = client.messages.create(
             model=self.model,
-            max_tokens=4000,
+            max_tokens=8192,
             system=system_prompt,
             messages=[
                 {"role": "user", "content": user_prompt}
@@ -209,3 +215,175 @@ class LLMClient:
         text_parts = [p.get("text", "") for p in parts if p.get("type") == "text"]
         
         return "\n".join(text_parts)
+
+    def _mock_generate(self, system_prompt, user_prompt, response_format_json):
+        """Simulates LLM responses based on keywords in the prompt for demo/testing purposes."""
+        import json
+        if "improvement points" in user_prompt.lower() or "list_improvements" in system_prompt.lower() or response_format_json:
+            mock_analysis = {
+                "project_name": "githubReadmeForge",
+                "project_type": "cli",
+                "project_type_reason": "It runs in the terminal as a commands developer tool.",
+                "project_maturity": "development",
+                "tech_stack": ["Python", "Rich CLI", "Git API", "LLMs"],
+                "project_persona": "An agentic terminal developer utility",
+                "problem_statement": "Writing READMEs manually is repetitive and results in generic docs.",
+                "solution_narrative": "It automates analysis and formatting through a multi-agent framework.",
+                "key_features": [
+                    {"name": "Multi-Agent Execution", "description": "Coordinates Reader, Analyzer, and Writer agents to generate docs.", "category": "Core"},
+                    {"name": "Pluggable LLMs", "description": "Support for Gemini, OpenAI, Claude, and local Ollama.", "category": "Integration"},
+                    {"name": "Mermaid Diagram Gen", "description": "Generates correct Mermaid.js flowcharts representing codebase flow.", "category": "Visuals"}
+                ],
+                "api_endpoints": [],
+                "config_variables": [],
+                "cli_commands": [],
+                "data_models": [
+                    {"name": "ScanResults", "fields": ["tree", "configs", "code_context", "test_signals"], "description": "Output of ReaderAgent codebase scan"}
+                ],
+                "installation_commands": [
+                    {"command": "pip install -r requirements.txt", "description": "Install dependencies"},
+                    {"command": "python setup.py install", "description": "Install package"}
+                ],
+                "external_services": [
+                    "Gemini API",
+                    "Claude API"
+                ],
+                "test_coverage": {
+                    "has_tests": True,
+                    "framework": "pytest",
+                    "test_count": 11,
+                    "description": "Basic validation tests for agents"
+                },
+                "architecture_layers": [
+                    {"layer": "CLI Entrypoint", "responsibility": "Argument parsing and configuration"},
+                    {"layer": "Agent Orchestrator", "responsibility": "Orchestrates scanning, analysis, and generation"},
+                    {"layer": "Reader Agent", "responsibility": "Local and remote repository scanning"}
+                ],
+                "improvements": [
+                    {
+                        "id": "1",
+                        "title": "Missing visual architectural layout",
+                        "description": "The current codebase has no visual representation showing how the CLI, agents, and LLMs interact.",
+                        "type": "Structure"
+                    },
+                    {
+                        "id": "2",
+                        "title": "Inconsistent configuration documentation",
+                        "description": "It is not clear how to set up LLM API keys or local Ollama endpoints.",
+                        "type": "Configuration"
+                    },
+                    {
+                        "id": "3",
+                        "title": "Lack of quick start/usage examples",
+                        "description": "No concrete example commands or visual showcase showing how simple it is to generate markdown.",
+                        "type": "Examples"
+                    }
+                ],
+                "connections": [
+                    {"from": "CLI Entrypoint", "to": "Orchestrator"},
+                    {"from": "Orchestrator", "to": "Reader Agent"},
+                    {"from": "Orchestrator", "to": "Analyzer Agent"},
+                    {"from": "Orchestrator", "to": "Writer Agent"},
+                    {"from": "Analyzer Agent", "to": "LLM Wrapper"},
+                    {"from": "Writer Agent", "to": "LLM Wrapper"}
+                ]
+            }
+            return json.dumps(mock_analysis, indent=2)
+
+        if "generate" in user_prompt.lower() or "readme" in user_prompt.lower():
+            return """# 🛠️ githubReadmeForge
+
+[![GitHub License](https://img.shields.io/github/license/user/repo?style=flat-square)](LICENSE)
+[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square)](https://www.python.org/)
+[![Architecture](https://img.shields.io/badge/architecture-multi--agentic-purple?style=flat-square)](#architecture)
+
+A terminal-based CLI tool that uses a multi-agent orchestration framework to analyze codebases and forge consistent, visually structured, and example-rich `README.md` files.
+
+---
+
+## 🎯 Features
+
+- **Multi-Agent Orchestration**: Separate specialized agents for reading files, analyzing architecture, and compiling markdown.
+- **Pluggable LLM Providers**: Support for Gemini, OpenAI, Claude, and local Ollama models.
+- **Interactive & Instant Modes**: Get a quick automated draft or review improvement points step-by-step.
+- **Rich Visuals**: Automatic integration of Mermaid.js architecture diagrams and repository layout visualizers.
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart TD
+    User([User CLI Input]) --> CLI[CLI Entrypoint: cli.py]
+    CLI --> LLM[LLM Client Wrapper: llm.py]
+    CLI --> Orch[Agent Orchestrator: orchestrator.py]
+    
+    Orch --> Reader[Reader Agent: reader.py]
+    Orch --> Analyzer[Analyzer Agent: analyzer.py]
+    Orch --> Writer[Writer Agent: writer.py]
+```
+
+---
+
+## 🚀 Getting Started
+
+### Installation
+
+```bash
+git clone https://github.com/user/githubReadmeForge.git
+cd githubReadmeForge
+pip install -r requirements.txt
+```
+
+### Usage
+
+Run the tool in interactive mode on your repository:
+```bash
+python main.py --path .
+```
+
+For instant mode without questions:
+```bash
+python main.py --path . --instant
+```
+
+---
+
+## ⚙️ Configuration
+
+<details>
+<summary><b>API Credentials Setup</b></summary>
+
+Set up environment variables for your chosen LLM provider:
+
+```bash
+# For Gemini (Default)
+export GEMINI_API_KEY="your-gemini-key"
+
+# For OpenAI
+export OPENAI_API_KEY="your-openai-key"
+
+# For Anthropic Claude
+export ANTHROPIC_API_KEY="your-claude-key"
+
+# For local Ollama
+export README_FORGE_PROVIDER="ollama"
+export OLLAMA_HOST="http://localhost:11434"
+```
+</details>
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+"""
+
+        return "Mock Response: Operation completed successfully."
+
