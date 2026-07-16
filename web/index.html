@@ -274,7 +274,7 @@
             <section class="wizard-panel" id="panel-5">
                 <div class="preview-wrapper">
                     <h2>Documentation Forged Successfully!</h2>
-                    <p class="panel-desc">Preview your compiled markdown below, copy the code, or download the companion landing page showroom.</p>
+                    <p class="panel-desc">Preview your compiled markdown below, compare with the original file, or copy the code.</p>
 
                     <div class="preview-split-box">
                         <!-- Preview Tabs (Left side) -->
@@ -333,16 +333,12 @@
                                 <textarea class="raw-markdown-editor" id="raw-readme-text" readonly></textarea>
                             </div>
                         </div>
-
-                        <!-- Hidden iframe for showroom download -->
-                        <iframe id="showroom-preview-iframe" style="display:none;"></iframe>
                     </div>
 
                     <div class="action-row export-actions">
                         <button class="btn btn-secondary" onclick="goToStep(4)">Back to Style</button>
                         <button class="btn btn-secondary" onclick="resetApp()">Start Over</button>
-                        <button class="btn btn-info" onclick="copyMarkdown()">Copy Markdown</button>
-                        <button class="btn btn-primary" onclick="downloadShowroom()">Download Showroom</button>
+                        <button class="btn btn-primary btn-large" onclick="copyMarkdown()">Copy Markdown</button>
                     </div>
                 </div>
             </section>

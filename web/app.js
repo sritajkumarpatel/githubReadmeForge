@@ -361,13 +361,12 @@ async function startGeneration(isInstant, compiledAnswers = '') {
     // Display loader overlay on dashboard
     loader.style.display = 'flex';
     if (dashboardActions) dashboardActions.style.display = 'none';
-    loaderStatus.textContent = "Writer Agent forging markdown README.md & showroom page...";
+    loaderStatus.textContent = "Writer Agent forging markdown README.md...";
 
     const statusMessages = [
         "Writer Agent preparing README structure...",
         "Writer Agent drafting narrative sections...",
-        "Writer Agent generating code examples...",
-        "Writer Agent building showroom showcase..."
+        "Writer Agent generating code examples..."
     ];
     let msgIdx = 0;
     const statusInterval = setInterval(() => {
@@ -404,7 +403,7 @@ async function startGeneration(isInstant, compiledAnswers = '') {
         }
 
         // Render preview content
-        displayGeneratedOutputs(data.readme, data.showroom);
+        displayGeneratedOutputs(data.readme);
 
         goToStep(5);
 
@@ -416,8 +415,29 @@ async function startGeneration(isInstant, compiledAnswers = '') {
     }
 }
 
-// DISPLAY PREVIEWS IN STEP 6
-function displayGeneratedOutputs(readme, showroom) {
+// Helper to escape special characters for Mermaid nodes safely
+function sanitizeMermaidText(text) {
+    if (!text) return '';
+    return text.split('\n').map(line => {
+        let sanitized = line;
+        // ID[Label] -> ID["Label"]
+        sanitized = sanitized.replace(/([a-zA-Z0-9_-]+)\[([^"\]\n\r]+)\]/g, (match, id, label) => {
+            return `${id}["${label.trim()}"]`;
+        });
+        // ID(Label) -> ID("Label")
+        sanitized = sanitized.replace(/([a-zA-Z0-9_-]+)\(([^"\)\n\r]+)\)/g, (match, id, label) => {
+            return `${id}("${label.trim()}")`;
+        });
+        // ID{Label} -> ID{"Label"}
+        sanitized = sanitized.replace(/([a-zA-Z0-9_-]+)\{([^"\}\n\r]+)\}/g, (match, id, label) => {
+            return `${id}{"${label.trim()}"}`;
+        });
+        return sanitized;
+    }).join('\n');
+}
+
+// DISPLAY PREVIEWS IN STEP 5
+function displayGeneratedOutputs(readme) {
     try {
         // 1. Raw code editor
         const textarea = document.getElementById('raw-readme-text');
@@ -441,7 +461,7 @@ function displayGeneratedOutputs(readme, showroom) {
             const preNode = codeNode.parentElement;
             const divNode = document.createElement('div');
             divNode.className = 'mermaid';
-            divNode.textContent = codeNode.textContent.trim();
+            divNode.textContent = sanitizeMermaidText(codeNode.textContent.trim());
             preNode.replaceWith(divNode);
         });
 
@@ -453,7 +473,8 @@ function displayGeneratedOutputs(readme, showroom) {
             mermaidDivs.forEach(div => {
                 try {
                     const id = 'mermaid-' + Math.random().toString(36).substr(2, 9);
-                    mermaid.render(id, div.textContent.trim()).then(svg => {
+                    const cleanText = sanitizeMermaidText(div.textContent.trim());
+                    mermaid.render(id, cleanText).then(svg => {
                         div.innerHTML = svg;
                     }).catch(err => {
                         console.warn("Mermaid render failed, showing code:", err);
@@ -468,14 +489,6 @@ function displayGeneratedOutputs(readme, showroom) {
 
         // 3. Compute and render diff
         computeAndRenderDiff(readme);
-
-        // 4. Render Showroom webpage inside iframe
-        const iframe = document.getElementById('showroom-preview-iframe');
-        if (!iframe) {
-            console.error("Element #showroom-preview-iframe not found");
-            return;
-        }
-        iframe.srcdoc = showroom || '';
     } catch (err) {
         console.error("Error in displayGeneratedOutputs:", err);
         showNotification("Error displaying output: " + err.message, 'error');
@@ -580,12 +593,23 @@ function computeAndRenderDiff(newReadme) {
                 if (lang.includes('mermaid') || block.textContent.trim().startsWith('flowchart') || block.textContent.trim().startsWith('graph')) {
                     const div = document.createElement('div');
                     div.className = 'mermaid';
-                    div.textContent = block.textContent;
+                    div.textContent = sanitizeMermaidText(block.textContent.trim());
                     block.parentElement.replaceWith(div);
                 }
             });
             try {
-                mermaid.run({ nodes: container.querySelectorAll('.mermaid') }).catch(() => {});
+                const divs = container.querySelectorAll('.mermaid');
+                if (divs.length > 0) {
+                    divs.forEach(div => {
+                        const id = 'mermaid-diff-' + Math.random().toString(36).substr(2, 9);
+                        const cleanText = sanitizeMermaidText(div.textContent.trim());
+                        mermaid.render(id, cleanText).then(svg => {
+                            div.innerHTML = svg;
+                        }).catch(() => {
+                            div.innerHTML = '<pre>' + div.textContent.trim() + '</pre>';
+                        });
+                    });
+                }
             } catch (e) {}
         });
     }
@@ -684,25 +708,6 @@ function copyMarkdown() {
     }).catch(err => {
         showNotification('Failed to copy: ' + err, 'error');
     });
-}
-
-function downloadShowroom() {
-    const iframe = document.getElementById('showroom-preview-iframe');
-    const htmlContent = iframe.srcdoc;
-    if (!htmlContent) {
-        showNotification('No showroom HTML content found.', 'error');
-        return;
-    }
-
-    const blob = new Blob([htmlContent], { type: 'text/html; charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'showroom.html';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
 }
 
 // APP RESET

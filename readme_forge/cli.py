@@ -44,7 +44,7 @@ Examples:
     parser.add_argument(
         "--output", "-o",
         default=None,
-        help="Output directory for README.md and showroom.html. Defaults to the target repo directory."
+        help="Output directory for the generated README.md. Defaults to the target repo directory."
     )
     parser.add_argument(
         "--instant", "-i",
@@ -54,13 +54,7 @@ Examples:
     parser.add_argument(
         "--preview", "-v",
         action="store_true",
-        help="Preview existing README.md and showroom.html from the target path (skips generation)."
-    )
-    parser.add_argument(
-        "--port",
-        type=int,
-        default=8080,
-        help="Port for the local showroom preview server. (default: 8080)"
+        help="Preview existing README.md in the terminal (skips generation)."
     )
     parser.add_argument(
         "--lang", "-l",
@@ -109,20 +103,15 @@ def main():
     if args.preview:
         target_dir = Path(args.path).resolve()
         readme_path = target_dir / "README.md"
-        showroom_path = target_dir / "showroom.html"
 
-        if not readme_path.exists() and not showroom_path.exists():
+        if not readme_path.exists():
             readme_path = target_dir / "README_new.md"
             if not readme_path.exists():
-                console.print(f"[red]Error: No README.md or showroom.html found at {target_dir}[/red]")
+                console.print(f"[red]Error: No README.md found at {target_dir}[/red]")
                 sys.exit(1)
 
-        previewer = Previewer(readme_path, showroom_path)
+        previewer = Previewer(readme_path)
         previewer.show_in_terminal()
-        if showroom_path.exists():
-            previewer.launch_showroom_server(port=args.port)
-        else:
-            console.print("[yellow]Showroom HTML not found — skipping local web preview.[/yellow]")
         return
 
     # ── Resolve provider ────────────────────────────────────────────────────
@@ -142,20 +131,18 @@ def main():
     )
 
     try:
-        readme_path, showroom_path = orchestrator.run()
+        readme_path = orchestrator.run()
 
         # Post-generation preview prompt (interactive mode only)
         if not args.instant:
-            launch_prev = input("\nLaunch showroom preview in browser? (y/n, default: y): ")
+            launch_prev = input("\nPreview the generated README in terminal? (y/n, default: y): ")
             if launch_prev.lower().strip() != "n":
-                previewer = Previewer(readme_path, showroom_path)
+                previewer = Previewer(readme_path)
                 previewer.show_in_terminal()
-                if Path(showroom_path).exists():
-                    previewer.launch_showroom_server(port=args.port)
         else:
             console.print(
                 "\n[green]Done. Run [bold]readme-forge --preview -p "
-                f"{Path(readme_path).parent}[/bold] to launch the visual showroom.[/green]"
+                f"{Path(readme_path).parent}[/bold] to view in terminal.[/green]"
             )
 
     except Exception as e:

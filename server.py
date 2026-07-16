@@ -306,12 +306,9 @@ class APIRequestHandler(BaseHTTPRequestHandler):
                 target_path_or_url=target_path,
                 lang=lang
             )
-            showroom_html = writer.generate_showroom_html(readme_md, analysis)
-
             self._send_json({
                 "success": True,
                 "readme": readme_md,
-                "showroom": showroom_html
             })
         except Exception as e:
             import traceback

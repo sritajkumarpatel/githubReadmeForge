@@ -80,7 +80,7 @@ class Orchestrator:
                 TextColumn("[progress.description]{task.description}"),
                 transient=True
             ) as progress:
-                progress.add_task(description="Forging README.md and Showroom HTML...", total=None)
+                progress.add_task(description="Forging README.md...", total=None)
                 
                 # Determine output directory (override > local path > readme_forge_output for remotes)
                 if self.output_dir_override:
@@ -101,13 +101,9 @@ class Orchestrator:
                     target_path_or_url=self.target_path_or_url,
                     lang=self.lang,
                 )
-                showroom_html = self.writer.generate_showroom_html(readme_md, analysis)
 
             # 4. SAVE PHASE
-            # Save files to target directory
-            # If target is remote (git url), reader.local_path points to temp dir.
-            # We can save it in the current working directory, or target path.
-            # Let's save in reader.local_path or output to user's local path if specified.
+            # Save file to target directory
             if self.output_dir_override:
                 output_dir = Path(self.output_dir_override)
                 output_dir.mkdir(parents=True, exist_ok=True)
@@ -118,7 +114,6 @@ class Orchestrator:
                 output_dir = Path(self.reader.local_path)
                 
             readme_path = output_dir / "README.md"
-            showroom_path = output_dir / "showroom.html"
 
             # In interactive mode, ask if user wants to overwrite
             if not self.instant and readme_path.exists():
@@ -128,17 +123,15 @@ class Orchestrator:
                     self.console.print(f"Saving new README as: [cyan]{readme_path.name}[/cyan]")
 
             readme_path.write_text(readme_md, encoding="utf-8")
-            showroom_path.write_text(showroom_html, encoding="utf-8")
 
-            self.console.print("\n[bold green]🎉 README.md and showroom.html Forged successfully![/bold green]")
-            self.console.print(f"Generated files location:")
+            self.console.print("\n[bold green]🎉 README.md Forged successfully![/bold green]")
+            self.console.print(f"Generated file location:")
             self.console.print(f"  📝 [bold]README[/bold]: {readme_path.resolve()}")
-            self.console.print(f"  🌐 [bold]Showroom HTML[/bold]: {showroom_path.resolve()}")
             
             if self.reader.is_temp:
                 self.console.print("\n[yellow]Note: Cloned repository outputs saved in './readme_forge_output/' folder.[/yellow]")
 
-            return str(readme_path), str(showroom_path)
+            return str(readme_path)
 
         finally:
             self.reader.cleanup()
