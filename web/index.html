@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>githubReadmeForge - Intelligent README Architect</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <!-- CSS link -->
+    <link rel="stylesheet" href="styles.css">
+    <!-- Marked Markdown Parser CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Mermaid Diagram Renderer CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <div class="glass-bg"></div>
+    <div class="app-container">
+        <!-- HEADER -->
+        <header class="app-header">
+            <div class="logo">
+                <h1>githubReadmeForge</h1>
+            </div>
+            <div class="step-indicator">
+                <span class="step-dot active" data-step="1" title="Home"></span>
+                <span class="step-dot" data-step="2" title="LLM Configuration"></span>
+                <span class="step-dot" data-step="3" title="Ingest Repo"></span>
+                <span class="step-dot" data-step="4" title="Analysis & Rating"></span>
+                <span class="step-dot" data-step="5" title="Q&A Setup" id="qa-indicator"></span>
+                <span class="step-dot" data-step="6" title="Preview & Export"></span>
+            </div>
+        </header>
+
+        <!-- WIZARD SLIDER PANELS -->
+        <main class="wizard-container">
+            
+            <!-- STEP 1: HOME PAGE -->
+            <section class="wizard-panel active" id="panel-1">
+                <div class="intro-hero">
+                    <h2>Tired of Maintaining Boring, Text-Heavy READMEs?</h2>
+                    <p class="hero-desc">
+                        Stop struggling with manual documentation. <code>githubReadmeForge</code> orchestrates collaborative AI agents to analyze your codebase, calculate document health ratings, and forge beautiful, visual-rich documentation and web-companion showrooms.
+                    </p>
+                    
+                    <div class="features-grid">
+                        <div class="feature-card">
+                            <span class="feat-icon">📊</span>
+                            <h3>Automated Diagnostics</h3>
+                            <p>Compares your code against your README to score completeness and locate documentation gaps.</p>
+                        </div>
+                        <div class="feature-card">
+                            <span class="feat-icon">🧬</span>
+                            <h3>Visual Flow Diagrams</h3>
+                            <p>Deduces technical architecture and injects live Mermaid.js system structure flows.</p>
+                        </div>
+                        <div class="feature-card">
+                            <span class="feat-icon">💡</span>
+                            <h3>Showroom Page Generator</h3>
+                            <p>Builds a stunning, standalone glassmorphic companion site perfect for GitHub Pages.</p>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary btn-large btn-glow" onclick="goToStep(2)">
+                        Start Forging &nbsp; →
+                    </button>
+                </div>
+            </section>
+
+            <!-- STEP 2: LLM CONFIGURATION -->
+            <section class="wizard-panel" id="panel-2">
+                <div class="config-wrapper">
+                    <h2>Select AI Orchestrator Backend</h2>
+                    <p class="panel-desc">Configure your LLM model details. Credentials remain entirely in memory and are never persisted.</p>
+                    
+                    <div class="form-group">
+                        <label for="provider-select">LLM Provider</label>
+                        <select id="provider-select" onchange="handleProviderChange()">
+                            <option value="mock" selected>Mock Generator (Local Testing, No Key Required)</option>
+                            <option value="gemini">Google Gemini</option>
+                            <option value="openai">OpenAI</option>
+                            <option value="claude">Anthropic Claude</option>
+                            <option value="ollama">Ollama (Local Offline LLM)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="api-key-group" style="display: none;">
+                        <label for="api-key-input">API Key</label>
+                        <input type="password" id="api-key-input" placeholder="Enter your provider API Key">
+                    </div>
+
+                    <div class="form-group" id="model-group" style="display: none;">
+                        <label for="model-input">Model Name</label>
+                        <input type="text" id="model-input" placeholder="e.g. gemini-1.5-flash, gpt-4o-mini">
+                    </div>
+
+                    <div class="form-group" id="ollama-host-group" style="display: none;">
+                        <label for="ollama-host-input">Ollama Server Host</label>
+                        <input type="text" id="ollama-host-input" value="http://localhost:11434">
+                    </div>
+
+                    <div class="action-row">
+                        <button class="btn btn-secondary" onclick="goToStep(1)">Back</button>
+                        <button class="btn btn-primary" onclick="validateLLMConfig()">Configure Backend &nbsp; →</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- STEP 3: REPOSITORY INPUT & INGESTION -->
+            <section class="wizard-panel" id="panel-3">
+                <div class="ingest-wrapper">
+                    <h2>Ingest Codebase Repository</h2>
+                    <p class="panel-desc">Provide a GitHub repository link or a local folder path for the agents to analyze.</p>
+
+                    <div class="form-group">
+                        <label for="repo-path-input">Repository Link / Path</label>
+                        <input type="text" id="repo-path-input" placeholder="https://github.com/user/project  OR  local/directory/path" value=".">
+                    </div>
+
+                    <!-- Loader (Hidden by default) -->
+                    <div class="loader-container" id="ingest-loader" style="display: none;">
+                        <div class="spinner"></div>
+                        <p class="loader-text" id="loader-status">Reader Agent scanning directory layout...</p>
+                        <div class="loader-sub">This may take 10-30 seconds for remote GitHub clones.</div>
+                    </div>
+
+                    <div class="action-row" id="ingest-actions">
+                        <button class="btn btn-secondary" onclick="goToStep(2)">Back</button>
+                        <button class="btn btn-primary" onclick="runAnalysis()">Analyze Codebase &nbsp; →</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- STEP 4: DIAGNOSTIC RATING DASHBOARD -->
+            <section class="wizard-panel" id="panel-4">
+                <div class="dashboard-wrapper">
+                    <h2>Diagnostic Analysis Dashboard</h2>
+                    <p class="panel-desc">Here is the comparison rating computed by our Analyzer Agent.</p>
+
+                    <div class="score-card-row">
+                        <!-- Score circle -->
+                        <div class="score-gauge-box">
+                            <div class="score-circle">
+                                <span class="score-value" id="score-text">0</span>
+                                <span class="score-label">Score</span>
+                            </div>
+                            <h3>README Health Index</h3>
+                        </div>
+                        <!-- Persona summary -->
+                        <div class="summary-box">
+                            <h4>Project Persona Summary</h4>
+                            <p id="dashboard-persona">Analyzing project type...</p>
+                            
+                            <h4 style="margin-top: 1rem;">Detected Tech Stack</h4>
+                            <div class="tech-pill-container" id="dashboard-tech-stack"></div>
+                        </div>
+                    </div>
+
+                    <!-- Improvements Table -->
+                    <div class="improvements-box">
+                        <h3>Identified Gaps & Gaps Table</h3>
+                        <div class="table-container">
+                            <table class="improvements-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 80px;">ID</th>
+                                        <th style="width: 150px;">Category</th>
+                                        <th>Issue / Suggestion</th>
+                                        <th>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="improvements-tbody">
+                                    <!-- Populated via Javascript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="style-select-box">
+                        <h3>Select README Design Style</h3>
+                        <p class="box-sub">Choose a visual theme and structure for the generated markdown content.</p>
+                        
+                        <div class="style-cards-grid">
+                            <div class="style-card active" data-style="visual_rich" onclick="selectStyle('visual_rich')">
+                                <div class="style-card-header">
+                                    <span class="style-name">Visual Rich</span>
+                                    <span class="style-badge">Default</span>
+                                </div>
+                                <p class="style-desc">Embeds SVG shields badges, layout icons, and collapsible parameter configuration details.</p>
+                            </div>
+                            <div class="style-card" data-style="minimalist" onclick="selectStyle('minimalist')">
+                                <div class="style-card-header">
+                                    <span class="style-name">Minimalist</span>
+                                </div>
+                                <p class="style-desc">Clean text spacing and clear code blocks. Excludes graphic badges and visual emojis entirely.</p>
+                            </div>
+                            <div class="style-card" data-style="enterprise" onclick="selectStyle('enterprise')">
+                                <div class="style-card-header">
+                                    <span class="style-name">Enterprise</span>
+                                </div>
+                                <p class="style-desc">Highly formal, structured text. Includes compliance tables, contributions, and license protocols.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mode-select-box" style="margin-top: 2rem;">
+                        <h3>Execute Rectify Process</h3>
+                        <p class="box-sub">Forge instantly with the selected style, or launch our interactive terminal console.</p>
+                        
+                        <div class="mode-buttons-row">
+                            <button class="mode-btn" onclick="startGeneration(true)">
+                                <span class="mode-title">Instant Auto-Forge</span>
+                                <span class="mode-sub">Generate and write the improved README immediately.</span>
+                            </button>
+                            <button class="mode-btn highlight" onclick="showGuidedSetup()">
+                                <span class="mode-title">Open Interactive Terminal</span>
+                                <span class="mode-sub">Converse step-by-step with the agent in a monospaced command console.</span>
+                              </button>
+                        </div>
+                    </div>
+
+                    <div class="action-row">
+                        <button class="btn btn-secondary" onclick="goToStep(3)">Back</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- STEP 5: INTERACTIVE AGENT TERMINAL -->
+            <section class="wizard-panel" id="panel-5">
+                <div class="terminal-wrapper">
+                    <h2>Interactive Agent Console</h2>
+                    <p class="panel-desc">Configure your documentation sections interactively with the Writer Agent. Strict content guardrails are active.</p>
+
+                    <div class="terminal-container">
+                        <div class="terminal-header">
+                            <div class="terminal-buttons">
+                                <span class="term-dot close"></span>
+                                <span class="term-dot minimize"></span>
+                                <span class="term-dot expand"></span>
+                            </div>
+                            <span class="terminal-title">readme_forge_agent --interactive</span>
+                        </div>
+                        <div class="terminal-body" id="terminal-body">
+                            <div class="terminal-log" id="terminal-log">
+                                <!-- Terminal chat log appends here -->
+                            </div>
+                            <div class="terminal-input-line">
+                                <span class="terminal-prompt">forge_user $</span>
+                                <input type="text" id="terminal-input" placeholder="Type answer or command..." autocomplete="off">
+                                <span class="terminal-cursor"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="action-row">
+                        <button class="btn btn-secondary" onclick="goToStep(4)">Abort Console</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- STEP 6: PREVIEW & EXPORT -->
+            <section class="wizard-panel" id="panel-6">
+                <div class="preview-wrapper">
+                    <h2>Documentation Forged Successfully!</h2>
+                    <p class="panel-desc">Preview your compiled markdown below, copy the code, or download the companion landing page showroom.</p>
+
+                    <div class="preview-split-box">
+                        <!-- Preview Tabs (Left side) -->
+                        <div class="preview-output-box">
+                            <div class="output-tab-bar">
+                                <button class="out-tab-btn active" onclick="switchOutputTab('html-readme')">Visual README</button>
+                                <button class="out-tab-btn" onclick="switchOutputTab('html-showroom')">Showroom Preview</button>
+                                <button class="out-tab-btn" onclick="switchOutputTab('raw-readme')">Raw Markdown</button>
+                            </div>
+                            
+                            <!-- Visual Markdown -->
+                            <div class="out-tab-content active" id="tab-html-readme">
+                                <div class="markdown-view" id="rendered-readme-body"></div>
+                            </div>
+                            
+                            <!-- Showroom Frame -->
+                            <div class="out-tab-content" id="tab-html-showroom">
+                                <iframe class="showroom-iframe" id="showroom-preview-iframe" src="about:blank"></iframe>
+                            </div>
+
+                            <!-- Raw Markdown -->
+                            <div class="out-tab-content" id="tab-raw-readme">
+                                <textarea class="raw-markdown-editor" id="raw-readme-text" readonly></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="action-row export-actions">
+                        <button class="btn btn-secondary" onclick="resetApp()">Forge Another Project</button>
+                        <button class="btn btn-info" onclick="copyMarkdown()">Copy Markdown</button>
+                        <button class="btn btn-primary btn-glow" onclick="downloadShowroom()">Download Showroom HTML</button>
+                    </div>
+                </div>
+            </section>
+
+    </div>
+    
+    <!-- Toast Notification Overlay -->
+    <div id="toast-container" class="toast-container"></div>
+    
+    <!-- Script loading -->
+    <script src="app.js"></script>
+</body>
+</html>
