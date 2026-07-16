@@ -10,9 +10,10 @@ from readme_forge.agents.analyzer import AnalyzerAgent
 from readme_forge.agents.writer import WriterAgent
 
 class Orchestrator:
-    def __init__(self, target_path_or_url, provider=None, model=None, instant=False):
+    def __init__(self, target_path_or_url, provider=None, model=None, instant=False, lang="en"):
         self.target_path_or_url = target_path_or_url
         self.instant = instant
+        self.lang = lang or "en"
         self.console = Console()
         
         self.llm_client = LLMClient(provider=provider, model=model)
@@ -76,7 +77,21 @@ class Orchestrator:
                 transient=True
             ) as progress:
                 progress.add_task(description="Forging README.md and Showroom HTML...", total=None)
-                readme_md = self.writer.generate_readme(scan_results, analysis, interactive_answers)
+                
+                # Determine output_dir
+                output_dir = Path(self.reader.local_path)
+                if self.reader.is_temp:
+                    output_dir = Path("./readme_forge_output")
+                    output_dir.mkdir(exist_ok=True)
+                
+                readme_md = self.writer.generate_readme(
+                    scan_results=scan_results,
+                    analysis=analysis,
+                    interactive_answers=interactive_answers,
+                    output_dir=output_dir,
+                    target_path_or_url=self.target_path_or_url,
+                    lang=self.lang
+                )
                 showroom_html = self.writer.generate_showroom_html(readme_md, analysis)
 
             # 4. SAVE PHASE
@@ -166,5 +181,10 @@ class Orchestrator:
         q_contact = input("\n4. Author name or email for support / contact section:\n> ")
         if q_contact.strip():
             answers.append(f"- Contact Information: {q_contact.strip()}")
+            
+        # Q5: Target Language Override
+        q_lang = input(f"\n5. Target language code for translation (e.g. 'zh-CN', 'es', or press Enter for default: '{self.lang}'):\n> ")
+        if q_lang.strip():
+            self.lang = q_lang.strip()
 
         return "\n".join(answers) if answers else None

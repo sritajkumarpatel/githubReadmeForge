@@ -158,41 +158,29 @@ class LLMClient:
 
         # Detect if it's the writer requesting README generation
         if "generate" in user_prompt.lower() or "readme" in user_prompt.lower():
-            return """# 🛠️ githubReadmeForge
+            return """<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/hero-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="assets/readme/hero-light.svg">
+  <img alt="githubReadmeForge Banner" src="assets/readme/hero-light.svg" width="100%">
+</picture>
 
-[![GitHub License](https://img.shields.io/github/license/user/repo?style=flat-square)](LICENSE)
-[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue?style=flat-square)](https://www.python.org/)
-[![Multi-Agentic](https://img.shields.io/badge/architecture-multi--agentic-purple?style=flat-square)](#architecture)
+<p align="right">
+  <strong>English</strong> · <a href="README.zh-CN.md">简体中文</a>
+</p>
+
+# 🛠️ githubReadmeForge
 
 A terminal-based CLI tool that uses a multi-agent orchestration framework to analyze codebases and forge consistent, visually structured, and example-rich `README.md` files.
 
 ---
 
-## 🎯 Features
+## 🎯 What & Why
 
-- **Multi-Agent Orchestration**: Separate specialized agents for reading files, analyzing architecture, and compiling markdown.
-- **Pluggable LLM Providers**: Support for Gemini, OpenAI, Claude, and local Ollama models.
-- **Interactive & Instant Modes**: Get a quick automated draft or review improvement points step-by-step.
-- **Rich Visuals**: Automatic integration of Mermaid.js architecture diagrams and repository layout visualizers.
+Stop struggling with writing and keeping codebase documentation up to date. `githubReadmeForge` reads your code, maps architecture flow connections, highlights improvements, and generates an engaging README along with an interactive HTML showroom website.
 
 ---
 
-## 🏗️ Architecture
-
-```mermaid
-graph TD
-    User([User CLI Input]) --> CLI[CLI Entrypoint: cli.py]
-    CLI --> LLM[LLM Client Wrapper: llm.py]
-    CLI --> Orch[Agent Orchestrator: orchestrator.py]
-    
-    Orch --> Reader[Reader Agent: reader.py]
-    Orch --> Analyzer[Analyzer Agent: analyzer.py]
-    Orch --> Writer[Writer Agent: writer.py]
-```
-
----
-
-## 🚀 Getting Started
+## 🚀 Quick Start / Usage
 
 ### Installation
 
@@ -212,6 +200,45 @@ python main.py --path .
 For instant mode without questions:
 ```bash
 python main.py --path . --instant
+```
+
+---
+
+## 🏗️ System Architecture
+
+```mermaid
+graph TD
+    User([User CLI Input]) --> CLI[CLI Entrypoint: cli.py]
+    CLI --> LLM[LLM Client Wrapper: llm.py]
+    CLI --> Orch[Agent Orchestrator: orchestrator.py]
+    
+    Orch --> Reader[Reader Agent: reader.py]
+    Orch --> Analyzer[Analyzer Agent: analyzer.py]
+    Orch --> Writer[Writer Agent: writer.py]
+```
+
+---
+
+## 📂 Repository Structure
+
+```
+githubReadmeForge/
+├── main.py
+├── readme_forge/
+│   ├── agents/
+│   │   ├── analyzer.py
+│   │   ├── orchestrator.py
+│   │   ├── reader.py
+│   │   └── writer.py
+│   ├── cli.py
+│   ├── hero_generator.py
+│   └── llm.py
+├── requirements.txt
+├── server.py
+└── web/
+    ├── index.html
+    ├── styles.css
+    └── app.js
 ```
 
 ---
@@ -241,13 +268,9 @@ export OLLAMA_HOST="http://localhost:11434"
 
 ---
 
-## 🤝 Contributing
+## 🤝 Contributing & License
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
----
-
-## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 """

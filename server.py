@@ -161,6 +161,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         api_key = req_body.get("api_key")
         custom_answers = req_body.get("custom_answers")
         readme_style = req_body.get("style", "visual_rich")
+        lang = req_body.get("lang", "en")
 
         if not scan_results or not analysis:
             self._send_json({"success": False, "error": "Analysis context is missing."}, 400)
@@ -197,7 +198,22 @@ class APIRequestHandler(BaseHTTPRequestHandler):
             llm_client = LLMClient(provider=provider, model=model, api_key=api_key)
             writer = WriterAgent(llm_client)
             
-            readme_md = writer.generate_readme(scan_results, analysis, custom_answers, readme_style)
+            # Determine output_dir
+            target_path = scan_results.get("path", ".")
+            output_dir = Path(target_path)
+            if not output_dir.exists() or "readme_forge_clone_" in output_dir.name:
+                output_dir = Path("./readme_forge_output")
+                output_dir.mkdir(exist_ok=True)
+
+            readme_md = writer.generate_readme(
+                scan_results=scan_results,
+                analysis=analysis,
+                interactive_answers=custom_answers,
+                style=readme_style,
+                output_dir=output_dir,
+                target_path_or_url=target_path,
+                lang=lang
+            )
             showroom_html = writer.generate_showroom_html(readme_md, analysis)
 
             self._send_json({

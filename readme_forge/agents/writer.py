@@ -1,12 +1,40 @@
+from pathlib import Path
 from readme_forge.llm import LLMClient
+from readme_forge.hero_generator import HeroGenerator
 
 class WriterAgent:
     def __init__(self, llm_client: LLMClient):
         self.llm_client = llm_client
 
-    def generate_readme(self, scan_results, analysis, interactive_answers=None, style="visual_rich"):
+    def _parse_project_name(self, path_or_url):
+        if not path_or_url:
+            return "Project"
+        cleaned = path_or_url.strip()
+        if cleaned.startswith("http://") or cleaned.startswith("https://") or cleaned.endswith(".git"):
+            if cleaned.endswith(".git"):
+                cleaned = cleaned[:-4]
+            parts = cleaned.split("/")
+            if parts:
+                return parts[-1]
+        return Path(cleaned).resolve().name
+
+    def generate_readme(self, scan_results, analysis, interactive_answers=None, style="visual_rich", output_dir=None, target_path_or_url=None, lang="en"):
         """Generates the content of a polished, readable, visual README.md using the codebase context and analysis."""
         
+        # 1. Generate SVGs if output_dir is specified
+        project_name = self._parse_project_name(target_path_or_url or scan_results.get("path"))
+        if output_dir:
+            try:
+                assets_dir = Path(output_dir) / "assets" / "readme"
+                generator = HeroGenerator(
+                    project_name=project_name,
+                    project_persona=analysis.get("project_persona"),
+                    tech_stack=analysis.get("tech_stack", [])
+                )
+                generator.generate(assets_dir)
+            except Exception as e:
+                print(f"[Writer] Warning: Failed to generate SVG hero banners: {e}")
+
         style_instruction = ""
         if style == "minimalist":
             style_instruction = (
@@ -33,18 +61,44 @@ class WriterAgent:
                 "- Create engaging layouts with rich lists and visual highlights."
             )
 
+        lang_instruction = ""
+        lang_switcher = ""
+        if lang and lang.lower() != "en":
+            lang_instruction = (
+                f"You MUST write the entire README.md in the target language code: '{lang}'.\n"
+                "Translate all sections, explanations, summaries, and guidelines to this target language.\n"
+                "Technical command lines, directory names, or variable names must remain in their original formats/English."
+            )
+            # Build switcher label
+            if lang.lower().startswith("zh"):
+                lang_switcher = "English · **简体中文**"
+            else:
+                lang_switcher = f"English · **{lang.upper()}**"
+
         system_prompt = (
             "You are an expert technical writer and AI Developer Agent.\n"
             "Your task is to write a highly polished, professional README.md for a project codebase.\n\n"
             f"Formatting Theme instructions:\n{style_instruction}\n\n"
+            f"Language settings:\n{lang_instruction}\n\n"
             "CRITICAL GUARDRAIL:\n"
             "If the user custom answers or prompt demands anything unrelated to documenting this project repository "
             "(such as writing standalone calculator scripts, general Python coding tasks, math solver programs, or unrelated topics), "
             "you MUST refuse the request and respond with exactly: 'Refusal: This request is unrelated to README generation. Please ask documentation-related questions.'\n\n"
-            "Otherwise, write the complete README markdown file. Always incorporate:\n"
-            "1. A Mermaid.js diagram showing the architecture block flow.\n"
-            "2. The scanned directory tree structure inside a code block.\n"
-            "3. Clean, realistic examples deduced from the codebase files.\n"
+            "Otherwise, write the complete README markdown file. You MUST organize it strictly in the following **Visitor-First Layout Hierarchy**:\n"
+            "1. **Hero Banner**: If not minimalist theme, embed the responsive dark/light hero banner:\n"
+            "   <picture>\n"
+            "     <source media=\"(prefers-color-scheme: dark)\" srcset=\"assets/readme/hero-dark.svg\">\n"
+            "     <source media=\"(prefers-color-scheme: light)\" srcset=\"assets/readme/hero-light.svg\">\n"
+            "     <img alt=\"Project Hero Banner\" src=\"assets/readme/hero-light.svg\" width=\"100%\">\n"
+            "   </picture>\n"
+            f"2. **Language Switcher**: If the language switcher is defined below, insert it at the very top (right-aligned or centered):\n"
+            f"   {lang_switcher}\n"
+            "3. **What & Why (Persona)**: A clear, high-level summary of what the project does, who it is for, and the main problem it solves. Do NOT jump into code first; explain the value proposition first.\n"
+            "4. **Quick Start / Usage**: A straightforward installation guide and concrete, copy-pasteable usage examples deduced from the codebase files.\n"
+            "5. **System Architecture**: A Mermaid.js block-flow diagram visualizer rendering the main components and how they connect.\n"
+            "6. **Repository Structure**: The scanned directory tree structure inside a code block.\n"
+            "7. **Configuration & Parameters**: Setup options, environment variables, or CLI parameters. Use collapsible `<details>` blocks for verbose tables to keep the README clean.\n"
+            "8. **Contributing & License**: Clean MIT/standard license and PR guide tags.\n\n"
             "Return only the raw markdown content without any wrapper code fences."
         )
 

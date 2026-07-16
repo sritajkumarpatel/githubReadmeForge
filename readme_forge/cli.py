@@ -41,6 +41,11 @@ def parse_args():
         default=8080,
         help="Port to host the local showroom preview server (default: 8080)."
     )
+    parser.add_argument(
+        "--lang", "-l",
+        default="en",
+        help="Target language code for the generated README (default: 'en')."
+    )
 
     return parser.parse_args()
 
@@ -88,7 +93,8 @@ def main():
         target_path_or_url=args.path,
         provider=provider,
         model=args.model,
-        instant=args.instant
+        instant=args.instant,
+        lang=args.lang
     )
 
     try:

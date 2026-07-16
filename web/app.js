@@ -393,7 +393,8 @@ async function startGeneration(isInstant, compiledAnswers = '') {
                 api_key: providerConfig.api_key,
                 model: providerConfig.model,
                 custom_answers: isInstant ? '' : compiledAnswers,
-                style: selectedStyle
+                style: selectedStyle,
+                lang: document.getElementById('lang-select').value
             })
         });
 
