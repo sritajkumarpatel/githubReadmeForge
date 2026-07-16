@@ -17,8 +17,9 @@ class AnalyzerAgent:
             "\n"
             "JSON Response Schema:\n"
             "{\n"
-            "  \"project_type\": \"One of: learning, library, application, cli, api, minimal. Choose the most accurate type.\",\n"
+            "  \"project_type\": \"One of: learning, poc, library, application, cli, api, minimal. Choose the most accurate type.\",\n"
             "  \"project_type_reason\": \"Brief explanation of why this type was selected.\",\n"
+            "  \"project_maturity\": \"One of: production, development, poc, unknown. Be honest about the project's current state.\",\n"
             "  \"tech_stack\": [\"List of specific languages, frameworks, and major dependencies detected\"],\n"
             "  \"project_persona\": \"A clear, compelling 1-2 sentence description of what this project does and who it is for.\",\n"
             "  \"problem_statement\": \"What specific pain point or problem does this project solve? Write 2-3 sentences describing the problem from the user's perspective.\",\n"
@@ -70,11 +71,19 @@ class AnalyzerAgent:
             "\n"
             "PROJECT TYPE GUIDELINES:\n"
             "- learning: Tutorial projects, starter templates, educational code. Keep README simple and focused on learning.\n"
+            "- poc: Proof-of-concept or prototype projects. README should be honest about experimental status and list what's working vs planned.\n"
             "- library: Reusable packages/modules published to npm/pypi/crates.io. Focus on API reference, installation, and usage examples.\n"
             "- application: Full web/desktop applications with multiple features. Comprehensive docs with all sections.\n"
             "- cli: Command-line tools. Focus on commands, flags, and usage examples.\n"
             "- api: Backend API services. Focus on endpoints, authentication, and request/response examples.\n"
             "- minimal: Small utility scripts or single-file projects. Concise README is sufficient.\n"
+            "\n"
+            "PROJECT MATURITY CLASSIFICATION:\n"
+            "Classify the project maturity honestly:\n"
+            "- production: Stable, well-tested, production-ready. Has CI/CD, tests, documentation.\n"
+            "- development: Active development, may have some rough edges. Has basic functionality working.\n"
+            "- poc: Proof-of-concept, early prototype, or experiment. May be incomplete or non-functional.\n"
+            "- unknown: Unable to determine maturity from available information.\n"
             "\n"
             "IMPORTANT RULES:\n"
             "- key_features: Extract at least 3-5 real features from the code. Do NOT invent features that aren't in the codebase.\n"
@@ -146,6 +155,7 @@ class AnalyzerAgent:
             return {
                 "project_type": "application",
                 "project_type_reason": "Default classification based on available information.",
+                "project_maturity": "unknown",
                 "tech_stack": ["Detected from files"],
                 "project_persona": "A software codebase project",
                 "problem_statement": "This project addresses a specific developer need.",

@@ -1,6 +1,6 @@
+import json
 from pathlib import Path
 from readme_forge.llm import LLMClient
-from readme_forge.hero_generator import HeroGenerator
 
 class WriterAgent:
     def __init__(self, llm_client: LLMClient):
@@ -21,19 +21,7 @@ class WriterAgent:
     def generate_readme(self, scan_results, analysis, interactive_answers=None, style="visual_rich", output_dir=None, target_path_or_url=None, lang="en"):
         """Generates the content of a polished, narrative-driven, professional README.md using deep codebase context and analysis."""
         
-        # 1. Generate SVGs if output_dir is specified
-        project_name = self._parse_project_name(target_path_or_url or scan_results.get("path"))
-        if output_dir:
-            try:
-                assets_dir = Path(output_dir) / "assets" / "readme"
-                generator = HeroGenerator(
-                    project_name=project_name,
-                    project_persona=analysis.get("project_persona"),
-                    tech_stack=analysis.get("tech_stack", [])
-                )
-                generator.generate(assets_dir)
-            except Exception as e:
-                print(f"[Writer] Warning: Failed to generate SVG hero banners: {e}")
+        # 1. Hero banner generation removed - using clean title block instead
 
         style_instruction = ""
         if style == "minimalist":
@@ -55,10 +43,10 @@ class WriterAgent:
         else:  # visual_rich
             style_instruction = (
                 "Format using a 'VISUAL RICH' design theme:\n"
-                "- Use visual SVG shields/badges at the top for tech stack and metadata details.\n"
-                "- Incorporate visual clues, icons, and formatted callout blocks.\n"
-                "- Use collapsible `<details>` blocks to keep configuration tables clean.\n"
-                "- Create engaging layouts with rich lists and visual highlights."
+                "- Use a single line of shields.io badges only for: license and language count (max 3 badges).\n"
+                "- Use clean section headers with subtle dividers.\n"
+                "- Use collapsible `<details>` blocks for verbose configuration tables.\n"
+                "- Professional and clean, not cluttered."
             )
 
         lang_instruction = ""
@@ -167,16 +155,8 @@ class WriterAgent:
             "If the user custom answers or prompt demands anything unrelated to documenting this project repository "
             "(such as writing standalone calculator scripts, general Python coding tasks, math solver programs, or unrelated topics), "
             "you MUST refuse the request and respond with exactly: 'Refusal: This request is unrelated to README generation. Please ask documentation-related questions.'\n\n"
-            "OTHERWISE, write the complete README markdown file using the following **Narrative-Driven Layout Structure**:\n\n"
-            "1. **Hero Banner**: If not minimalist theme, embed the responsive dark/light hero banner:\n"
-            "   <picture>\n"
-            "     <source media=\"(prefers-color-scheme: dark)\" srcset=\"assets/readme/hero-dark.svg\">\n"
-            "     <source media=\"(prefers-color-scheme: light)\" srcset=\"assets/readme/hero-light.svg\">\n"
-            "     <img alt=\"Project Hero Banner\" src=\"assets/readme/hero-light.svg\" width=\"100%\">\n"
-            "   </picture>\n"
-            f"2. **Language Switcher**: If the language switcher is defined below, insert it at the very top (right-aligned or centered):\n"
-            f"   {lang_switcher}\n"
-            "3. **Title Block**: Center-aligned project name with a bold tagline and shields.io badges for tech stack, license, etc.\n\n"
+            "OTHERWISE, write the complete README markdown file using the following **Layout Structure**:\n\n"
+            "1. **Title Block**: Project name as H1 with a compelling tagline. Add shields.io badges for: license, language count, and CI/CD status if applicable.\n\n"
             "4. **The Problem** (MANDATORY): Write a compelling 2-3 paragraph narrative explaining the PAIN POINT this project solves.\n"
             "   - Use the `problem_statement` from analysis as a starting point, but EXPAND it into a relatable story.\n"
             "   - Write from the developer's perspective: 'Every developer has been there...'\n"
@@ -190,12 +170,11 @@ class WriterAgent:
             "   a) A Mermaid.js diagram showing the actual component flow (use real file names from the codebase)\n"
             "   b) A markdown table showing each major component, its role, input, and output\n"
             "   c) An ASCII or box-diagram showing the data pipeline (Input → Processing → Output)\n\n"
-            "7. **Features**: Create a visually rich feature list with:\n"
-            "   - An emoji icon for each feature\n"
+            "7. **Features**: Create a clean feature list with:\n"
             "   - A bold feature name as a sub-heading\n"
             "   - A 2-3 sentence description explaining what it does and why it matters\n"
             "   - Group related features logically\n"
-            "   - Use the `key_features` from analysis data\n\n"
+            "   - Use simple dash (-) markers, no emojis\n\n"
             "8. **Quick Start / Usage**: Concrete, copy-pasteable installation and usage examples:\n"
             "   - Installation steps (git clone, pip install, npm install, etc.)\n"
             "   - Basic usage command with expected output\n"
@@ -252,11 +231,12 @@ class WriterAgent:
         # We can construct a highly interactive static HTML template.
         # It imports Mermaid.js and marked.js (markdown parser) via CDN so it loads dynamically,
         # and styles it with a sleek, glowing dark glassmorphism CSS interface, tabs, and copy-buttons.
-        
-        escaped_readme = readme_markdown.replace("`", "\\`").replace("$", "\\$")
-        
+
+        import json
+        escaped_readme = json.dumps(readme_markdown)[1:-1]
+
         tech_badges = ""
-        for tech in analysis.get("tech_stack", []):
+        for tech in analysis.get("tech_stack", [])[:6]:
             tech_badges += f'<span class="tech-badge">{tech}</span> '
 
         # Build Mermaid connections graph safely with real newlines
@@ -281,15 +261,19 @@ class WriterAgent:
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root {{
-            --bg-color: #0b0f19;
-            --card-bg: rgba(22, 29, 49, 0.6);
-            --border-color: rgba(255, 255, 255, 0.08);
-            --accent-color: #3b82f6;
-            --accent-glow: rgba(59, 130, 246, 0.4);
-            --text-primary: #f3f4f6;
-            --text-secondary: #9ca3af;
+            --bg-main: #f8fafc;
+            --bg-glass: rgba(255, 255, 255, 0.7);
+            --border-glass: rgba(0, 0, 0, 0.08);
+            --text-primary: #0f172a;
+            --text-secondary: #64748b;
+            --text-muted: #94a3b8;
+            --accent: #0369a1;
+            --accent-light: rgba(3, 105, 161, 0.08);
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+            --shadow-lg: 0 8px 30px rgba(0,0,0,0.12);
         }}
-        
+
         * {{
             box-sizing: border-box;
             margin: 0;
@@ -297,16 +281,15 @@ class WriterAgent:
         }}
 
         body {{
-            font-family: 'Outfit', sans-serif;
-            background-color: var(--bg-color);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-main);
+            background-image:
+                radial-gradient(ellipse at 20% 0%, rgba(3, 105, 161, 0.03) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 100%, rgba(3, 105, 161, 0.03) 0%, transparent 50%);
             color: var(--text-primary);
             min-height: 100vh;
-            background-image: 
-                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.15) 0px, transparent 50%);
-            padding: 2rem;
-            display: flex;
-            justify-content: center;
+            padding: 3rem 2rem;
+            line-height: 1.6;
         }}
 
         .container {{
@@ -318,39 +301,28 @@ class WriterAgent:
         }}
 
         header {{
-            background: var(--card-bg);
-            backdrop-filter: blur(12px);
-            border: 1px solid var(--border-color);
+            background: var(--bg-glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glass);
             border-radius: 16px;
-            padding: 2.5rem;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            position: relative;
-            overflow: hidden;
-        }}
-
-        header::before {{
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 4px;
-            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            padding: 2rem 2.5rem;
+            box-shadow: var(--shadow-lg);
         }}
 
         h1 {{
-            font-size: 2.8rem;
-            font-weight: 800;
-            background: linear-gradient(to right, #3b82f6, #a78bfa);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
             margin-bottom: 0.5rem;
+            letter-spacing: -0.02em;
         }}
 
         .subtitle {{
             color: var(--text-secondary);
-            font-size: 1.2rem;
-            margin-bottom: 1.5rem;
+            font-size: 1rem;
+            line-height: 1.5;
+            margin-bottom: 1.25rem;
         }}
 
         .tech-badges {{
@@ -360,14 +332,13 @@ class WriterAgent:
         }}
 
         .tech-badge {{
-            background: rgba(59, 130, 246, 0.15);
-            border: 1px solid rgba(59, 130, 246, 0.3);
-            color: #93c5fd;
-            padding: 0.3rem 0.8rem;
-            border-radius: 50px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            letter-spacing: 0.05em;
+            background: var(--bg-main);
+            border: 1px solid var(--border-glass);
+            color: var(--text-secondary);
+            padding: 0.35rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 500;
         }}
 
         main {{
@@ -377,52 +348,50 @@ class WriterAgent:
         }}
 
         .tabs-container {{
-            background: var(--card-bg);
-            backdrop-filter: blur(12px);
-            border: 1px solid var(--border-color);
+            background: var(--bg-glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glass);
             border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            box-shadow: var(--shadow-lg);
             overflow: hidden;
         }}
 
         .tab-bar {{
             display: flex;
-            border-bottom: 1px solid var(--border-color);
-            background: rgba(0, 0, 0, 0.2);
-            padding: 0.5rem 1rem 0;
+            border-bottom: 1px solid var(--border-glass);
+            background: rgba(255,255,255,0.5);
+            padding: 0 1.5rem;
         }}
 
         .tab-btn {{
             background: none;
             border: none;
-            color: var(--text-secondary);
-            padding: 1rem 1.5rem;
-            font-size: 1rem;
-            font-weight: 600;
+            color: var(--text-muted);
+            padding: 1rem 1.25rem;
+            font-size: 0.9rem;
+            font-weight: 500;
             cursor: pointer;
-            border-radius: 8px 8px 0 0;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
             position: relative;
         }}
 
         .tab-btn:hover {{
-            color: var(--text-primary);
+            color: var(--text-secondary);
         }}
 
         .tab-btn.active {{
-            color: var(--accent-color);
-            background: rgba(22, 29, 49, 0.8);
+            color: var(--accent);
         }}
 
         .tab-btn.active::after {{
             content: '';
             position: absolute;
-            bottom: 0;
+            bottom: -1px;
             left: 0;
             width: 100%;
-            height: 3px;
-            background: var(--accent-color);
-            box-shadow: 0 0 10px var(--accent-glow);
+            height: 2px;
+            background: var(--accent);
         }}
 
         .tab-content {{
@@ -436,111 +405,120 @@ class WriterAgent:
 
         /* Markdown styling inside showroom */
         .markdown-body {{
-            line-height: 1.6;
+            line-height: 1.7;
+            color: var(--text-primary);
         }}
-        
+
         .markdown-body h2 {{
-            font-size: 1.8rem;
+            font-size: 1.5rem;
+            font-weight: 600;
             margin-top: 2rem;
             margin-bottom: 1rem;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-glass);
             padding-bottom: 0.5rem;
-            color: #60a5fa;
+            color: var(--text-primary);
         }}
 
         .markdown-body h3 {{
-            font-size: 1.4rem;
+            font-size: 1.2rem;
+            font-weight: 600;
             margin-top: 1.5rem;
-            margin-bottom: 0.8rem;
-            color: #a78bfa;
+            margin-bottom: 0.75rem;
+            color: var(--text-primary);
         }}
 
         .markdown-body p {{
-            margin-bottom: 1.2rem;
-            color: #d1d5db;
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
         }}
 
         .markdown-body ul, .markdown-body ol {{
-            margin-left: 2rem;
-            margin-bottom: 1.2rem;
-            color: #d1d5db;
+            margin-left: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
         }}
 
         .markdown-body li {{
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.4rem;
+        }}
+
+        .markdown-body a {{
+            color: var(--accent);
+            text-decoration: none;
+        }}
+
+        .markdown-body a:hover {{
+            text-decoration: underline;
         }}
 
         .markdown-body pre {{
-            background: #0f172a;
-            border: 1px solid var(--border-color);
+            background: #f1f5f9;
+            border: 1px solid var(--border-glass);
             border-radius: 8px;
-            padding: 1.2rem;
+            padding: 1rem 1.25rem;
             margin-bottom: 1.5rem;
             overflow-x: auto;
-            position: relative;
         }}
 
         .markdown-body code {{
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
         }}
 
         .markdown-body :not(pre) > code {{
-            background: rgba(255, 255, 255, 0.08);
-            padding: 0.2rem 0.4rem;
+            background: var(--bg-main);
+            padding: 0.15rem 0.4rem;
             border-radius: 4px;
-            color: #f472b6;
+            font-size: 0.85em;
+            border: 1px solid var(--border-glass);
         }}
 
         .markdown-body table {{
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 1.5rem;
+            font-size: 0.9rem;
         }}
 
         .markdown-body th, .markdown-body td {{
-            border: 1px solid var(--border-color);
-            padding: 0.75rem;
+            border: 1px solid var(--border-glass);
+            padding: 0.75rem 1rem;
             text-align: left;
         }}
 
         .markdown-body th {{
-            background-color: rgba(255, 255, 255, 0.03);
+            background: var(--bg-main);
             font-weight: 600;
         }}
 
         .markdown-body blockquote {{
-            border-left: 4px solid var(--accent-color);
-            background: rgba(59, 130, 246, 0.05);
-            padding: 1rem 1.5rem;
+            border-left: 3px solid var(--accent);
+            background: var(--accent-light);
+            padding: 1rem 1.25rem;
             margin-bottom: 1.5rem;
             border-radius: 0 8px 8px 0;
-            color: #93c5fd;
+            color: var(--text-secondary);
         }}
 
         .markdown-body details {{
-            background: rgba(0, 0, 0, 0.2);
-            border: 1px solid var(--border-color);
+            background: var(--bg-main);
+            border: 1px solid var(--border-glass);
             border-radius: 8px;
             padding: 1rem;
-            margin-bottom: 1.2rem;
+            margin-bottom: 1rem;
         }}
 
         .markdown-body summary {{
             cursor: pointer;
-            font-weight: 600;
+            font-weight: 500;
             outline: none;
-            color: #e5e7eb;
-        }}
-
-        .markdown-body summary:hover {{
-            color: var(--accent-color);
+            color: var(--text-primary);
         }}
 
         /* Custom Showroom Visuals */
         .card {{
-            background: rgba(0, 0, 0, 0.15);
-            border: 1px solid var(--border-color);
+            background: var(--bg-main);
+            border: 1px solid var(--border-glass);
             border-radius: 12px;
             padding: 1.5rem;
             margin-bottom: 1.5rem;
@@ -549,52 +527,45 @@ class WriterAgent:
         .connections-visualizer {{
             display: flex;
             flex-direction: column;
-            gap: 1.5rem;
-            align-items: center;
-            padding: 2rem;
+            gap: 1rem;
+            align-items: flex-start;
+            padding: 1rem 0;
         }}
 
         .showroom-flow-node {{
-            background: linear-gradient(135deg, #1e293b, #0f172a);
-            border: 1px solid #3b82f6;
-            box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
+            background: var(--bg-main);
+            border: 1px solid var(--border-glass);
             border-radius: 8px;
             padding: 1rem 1.5rem;
-            width: 250px;
-            text-align: center;
-            font-weight: 600;
-            position: relative;
+            font-weight: 500;
+            color: var(--text-primary);
+            box-shadow: var(--shadow-sm);
         }}
 
         .showroom-flow-arrow {{
-            color: #8b5cf6;
-            font-size: 1.5rem;
-            animation: bounce 2s infinite;
-        }}
-
-        @keyframes bounce {{
-            0%, 100% {{ transform: translateY(0); }}
-            50% {{ transform: translateY(5px); }}
+            color: var(--text-muted);
+            font-size: 1rem;
+            padding: 0.25rem 0;
         }}
 
         .footer {{
             text-align: center;
-            color: var(--text-secondary);
-            font-size: 0.85rem;
-            margin-top: 1rem;
-            padding: 1.5rem;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            padding: 1rem;
         }}
 
         .footer a {{
-            color: var(--accent-color);
+            color: var(--accent);
             text-decoration: none;
+            font-weight: 500;
         }}
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>Project Showroom</h1>
+            <h1>{analysis.get('project_name', 'Project Showroom')}</h1>
             <div class="subtitle">{analysis.get('project_persona', 'Repository Showcase')}</div>
             <div class="tech-badges">
                 {tech_badges}
@@ -635,35 +606,40 @@ class WriterAgent:
         </main>
 
         <div class="footer">
-            Generated with 🛠️ <a href="https://github.com/user/githubReadmeForge" target="_blank">githubReadmeForge</a> - Intelligent Agentic README Architect.
+            Generated by <a href="https://github.com/user/githubReadmeForge" target="_blank">githubReadmeForge</a>
         </div>
     </div>
 
     <script>
-        // Set up markdown content
         const markdown = `{escaped_readme}`;
         document.getElementById('readme-html').innerHTML = marked.parse(markdown);
 
-        // Initialize mermaid
-        mermaid.initialize({{ startOnLoad: false, theme: 'dark' }});
+        mermaid.initialize({{ startOnLoad: false, theme: 'base' }});
 
-        // Tab Switcher Logic
         function switchTab(tabId) {{
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
 
             const activeBtn = Array.from(document.querySelectorAll('.tab-btn')).find(btn => btn.textContent.toLowerCase().includes(tabId));
             if (activeBtn) activeBtn.classList.add('active');
-            
+
             const activeTab = document.getElementById(tabId + '-tab');
             if (activeTab) activeTab.classList.add('active');
 
             if (tabId === 'architecture') {{
-                mermaid.run({{
-                    querySelector: '.mermaid'
-                }});
+                const mermaidEl = document.querySelector('.mermaid');
+                if (mermaidEl && mermaidEl.textContent.trim() && mermaidEl.textContent.trim() !== 'graph TD') {{
+                    mermaid.run({{ querySelector: '.mermaid' }});
+                }}
             }}
         }}
+
+        document.addEventListener('DOMContentLoaded', function() {{
+            const mermaidEl = document.querySelector('.mermaid');
+            if (mermaidEl && mermaidEl.textContent.trim() && mermaidEl.textContent.trim() !== 'graph TD') {{
+                mermaid.run({{ querySelector: '.mermaid' }});
+            }}
+        }});
     </script>
 </body>
 </html>

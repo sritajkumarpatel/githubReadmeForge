@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>githubReadmeForge - Intelligent README Architect</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <!-- CSS link -->
@@ -22,12 +23,30 @@
                 <h1>githubReadmeForge</h1>
             </div>
             <div class="step-indicator">
-                <span class="step-dot active" data-step="1" title="Home"></span>
-                <span class="step-dot" data-step="2" title="LLM Configuration"></span>
-                <span class="step-dot" data-step="3" title="Ingest Repo"></span>
-                <span class="step-dot" data-step="4" title="Analysis & Rating"></span>
-                <span class="step-dot" data-step="5" title="Q&A Setup" id="qa-indicator"></span>
-                <span class="step-dot" data-step="6" title="Preview & Export"></span>
+                <div class="step-item active" data-step="1">
+                    <div class="step-dot"></div>
+                    <span class="step-label">Start</span>
+                </div>
+                <div class="step-line"></div>
+                <div class="step-item" data-step="2">
+                    <div class="step-dot"></div>
+                    <span class="step-label">Provider</span>
+                </div>
+                <div class="step-line"></div>
+                <div class="step-item" data-step="3">
+                    <div class="step-dot"></div>
+                    <span class="step-label">Ingest</span>
+                </div>
+                <div class="step-line"></div>
+                <div class="step-item" data-step="4">
+                    <div class="step-dot"></div>
+                    <span class="step-label">Analyze</span>
+                </div>
+                <div class="step-line"></div>
+                <div class="step-item" data-step="5">
+                    <div class="step-dot"></div>
+                    <span class="step-label">Export</span>
+                </div>
             </div>
         </header>
 
@@ -44,34 +63,14 @@
                     
                     <div class="features-grid">
                         <div class="feature-card">
-                            <svg class="feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M3 3v18h18"/>
-                                <path d="M18 17V9"/>
-                                <path d="M13 17V5"/>
-                                <path d="M8 17v-3"/>
-                            </svg>
                             <h3>Automated Diagnostics</h3>
                             <p>Compares your code against your README to score completeness and locate documentation gaps.</p>
                         </div>
                         <div class="feature-card">
-                            <svg class="feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="3"/>
-                                <path d="M12 2v4"/>
-                                <path d="M12 18v4"/>
-                                <path d="M4.93 4.93l2.83 2.83"/>
-                                <path d="M16.24 16.24l2.83 2.83"/>
-                                <path d="M2 12h4"/>
-                                <path d="M18 12h4"/>
-                            </svg>
                             <h3>Visual Architecture Maps</h3>
                             <p>Deduces technical architecture and injects live Mermaid.js system structure flows.</p>
                         </div>
                         <div class="feature-card">
-                            <svg class="feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="3" y="3" width="18" height="18" rx="2"/>
-                                <path d="M3 9h18"/>
-                                <path d="M9 21V9"/>
-                            </svg>
                             <h3>Showroom Page Generator</h3>
                             <p>Builds a stunning, standalone glassmorphic companion site perfect for GitHub Pages.</p>
                         </div>
@@ -92,7 +91,7 @@
                     <div class="form-group">
                         <label for="provider-select">LLM Provider</label>
                         <select id="provider-select" onchange="handleProviderChange()">
-                            <option value="mock" selected>Mock Generator (Local Testing, No Key Required)</option>
+                            <option value="" disabled selected>Select a provider...</option>
                             <option value="gemini">Google Gemini</option>
                             <option value="openai">OpenAI</option>
                             <option value="claude">Anthropic Claude</option>
@@ -145,7 +144,7 @@
 
                     <div class="form-group">
                         <label for="repo-path-input">Repository Link / Path</label>
-                        <input type="text" id="repo-path-input" placeholder="https://github.com/user/project  OR  local/directory/path" value=".">
+                        <input type="text" id="repo-path-input" placeholder="https://github.com/user/project  OR  local/directory/path" value="." onkeydown="if(event.key==='Enter'){runAnalysis()}">
                     </div>
 
                     <!-- Loader (Hidden by default) -->
@@ -164,6 +163,12 @@
 
             <!-- STEP 4: DIAGNOSTIC RATING DASHBOARD -->
             <section class="wizard-panel" id="panel-4">
+                <!-- Generation loader overlay -->
+                <div class="loader-overlay" id="dashboard-loader" style="display: none;">
+                    <div class="loader-spinner"></div>
+                    <p class="loader-status" id="dashboard-loader-status">Writer Agent forging README...</p>
+                </div>
+
                 <div class="dashboard-wrapper">
                     <h2>Diagnostic Analysis Dashboard</h2>
                     <p class="panel-desc">Here is the comparison rating computed by our Analyzer Agent.</p>
@@ -209,27 +214,33 @@
 
                     <div class="style-select-box">
                         <h3>Select README Design Style</h3>
-                        <p class="box-sub">Choose a visual theme and structure for the generated markdown content.</p>
-                        
+                        <p class="box-sub">Choose a visual theme for the generated markdown content.</p>
+
                         <div class="style-cards-grid">
                             <div class="style-card active" data-style="visual_rich" onclick="selectStyle('visual_rich')">
-                                <div class="style-card-header">
+                                <div class="style-preview">
+                                    <img src="assets/styles/visual-rich.svg" alt="Visual Rich Preview">
+                                </div>
+                                <div class="style-card-footer">
                                     <span class="style-name">Visual Rich</span>
                                     <span class="style-badge">Default</span>
                                 </div>
-                                <p class="style-desc">Embeds SVG shields badges, layout icons, and collapsible parameter configuration details.</p>
                             </div>
                             <div class="style-card" data-style="minimalist" onclick="selectStyle('minimalist')">
-                                <div class="style-card-header">
+                                <div class="style-preview">
+                                    <img src="assets/styles/minimalist.svg" alt="Minimalist Preview">
+                                </div>
+                                <div class="style-card-footer">
                                     <span class="style-name">Minimalist</span>
                                 </div>
-                                <p class="style-desc">Clean text spacing and clear code blocks. Excludes graphic badges and visual emojis entirely.</p>
                             </div>
                             <div class="style-card" data-style="enterprise" onclick="selectStyle('enterprise')">
-                                <div class="style-card-header">
+                                <div class="style-preview">
+                                    <img src="assets/styles/enterprise.svg" alt="Enterprise Preview">
+                                </div>
+                                <div class="style-card-footer">
                                     <span class="style-name">Enterprise</span>
                                 </div>
-                                <p class="style-desc">Highly formal, structured text. Includes compliance tables, contributions, and license protocols.</p>
                             </div>
                         </div>
                     </div>
@@ -250,63 +261,17 @@
                         </div>
                     </div>
 
-                    <div class="mode-select-box" style="margin-top: 2rem;">
-                        <h3>Execute Rectify Process</h3>
-                        <p class="box-sub">Forge instantly with the selected style, or launch our interactive terminal console.</p>
-                        
-                        <div class="mode-buttons-row">
-                            <button class="mode-btn" onclick="startGeneration(true)">
-                                <span class="mode-title">Instant Auto-Forge</span>
-                                <span class="mode-sub">Generate and write the improved README immediately.</span>
-                            </button>
-                            <button class="mode-btn highlight" onclick="showGuidedSetup()">
-                                <span class="mode-title">Open Interactive Terminal</span>
-                                <span class="mode-sub">Converse step-by-step with the agent in a monospaced command console.</span>
-                              </button>
-                        </div>
-                    </div>
-
-                    <div class="action-row">
+                    <div class="action-row" id="dashboard-actions">
                         <button class="btn btn-secondary" onclick="goToStep(3)">Back</button>
+                        <button class="btn btn-primary btn-large" onclick="startGeneration(true)">
+                            Generate README
+                        </button>
                     </div>
                 </div>
             </section>
 
-            <!-- STEP 5: INTERACTIVE AGENT TERMINAL -->
+            <!-- STEP 5: PREVIEW & EXPORT -->
             <section class="wizard-panel" id="panel-5">
-                <div class="terminal-wrapper">
-                    <h2>Interactive Agent Console</h2>
-                    <p class="panel-desc">Configure your documentation sections interactively with the Writer Agent. Strict content guardrails are active.</p>
-
-                    <div class="terminal-container">
-                        <div class="terminal-header">
-                            <div class="terminal-buttons">
-                                <span class="term-dot close"></span>
-                                <span class="term-dot minimize"></span>
-                                <span class="term-dot expand"></span>
-                            </div>
-                            <span class="terminal-title">readme_forge_agent --interactive</span>
-                        </div>
-                        <div class="terminal-body" id="terminal-body">
-                            <div class="terminal-log" id="terminal-log">
-                                <!-- Terminal chat log appends here -->
-                            </div>
-                            <div class="terminal-input-line">
-                                <span class="terminal-prompt">forge_user $</span>
-                                <input type="text" id="terminal-input" placeholder="Type answer or command..." autocomplete="off">
-                                <span class="terminal-cursor"></span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="action-row">
-                        <button class="btn btn-secondary" onclick="goToStep(4)">Abort Console</button>
-                    </div>
-                </div>
-            </section>
-
-            <!-- STEP 6: PREVIEW & EXPORT -->
-            <section class="wizard-panel" id="panel-6">
                 <div class="preview-wrapper">
                     <h2>Documentation Forged Successfully!</h2>
                     <p class="panel-desc">Preview your compiled markdown below, copy the code, or download the companion landing page showroom.</p>
@@ -315,19 +280,30 @@
                         <!-- Preview Tabs (Left side) -->
                         <div class="preview-output-box">
                             <div class="output-tab-bar">
-                                <button class="out-tab-btn active" onclick="switchOutputTab('html-readme')">Visual README</button>
-                                <button class="out-tab-btn" onclick="switchOutputTab('html-showroom')">Showroom Preview</button>
-                                <button class="out-tab-btn" onclick="switchOutputTab('raw-readme')">Raw Markdown</button>
+                                <button class="out-tab-btn active" onclick="switchOutputTab('html-readme')">Preview</button>
+                                <button class="out-tab-btn" onclick="switchOutputTab('diff-readme')">Compare</button>
+                                <button class="out-tab-btn" onclick="switchOutputTab('raw-readme')">Markdown</button>
                             </div>
-                            
+
                             <!-- Visual Markdown -->
                             <div class="out-tab-content active" id="tab-html-readme">
                                 <div class="markdown-view" id="rendered-readme-body"></div>
                             </div>
-                            
-                            <!-- Showroom Frame -->
-                            <div class="out-tab-content" id="tab-html-showroom">
-                                <iframe class="showroom-iframe" id="showroom-preview-iframe" src="about:blank"></iframe>
+
+                            <!-- Diff View -->
+                            <div class="out-tab-content" id="tab-diff-readme">
+                                <div class="diff-tabs">
+                                    <button class="diff-tab active" onclick="switchDiffTab('old')">Original README</button>
+                                    <button class="diff-tab" onclick="switchDiffTab('new')">Generated README</button>
+                                </div>
+                                <div class="diff-split-view">
+                                    <div class="diff-side" id="diff-old"></div>
+                                    <div class="diff-changes-summary" id="diff-summary">
+                                        <h4>Key Changes</h4>
+                                        <div id="diff-summary-content"></div>
+                                    </div>
+                                    <div class="diff-side" id="diff-new" style="display:none;"></div>
+                                </div>
                             </div>
 
                             <!-- Raw Markdown -->
@@ -335,12 +311,16 @@
                                 <textarea class="raw-markdown-editor" id="raw-readme-text" readonly></textarea>
                             </div>
                         </div>
+
+                        <!-- Hidden iframe for showroom download -->
+                        <iframe id="showroom-preview-iframe" style="display:none;"></iframe>
                     </div>
 
                     <div class="action-row export-actions">
-                        <button class="btn btn-secondary" onclick="resetApp()">Forge Another Project</button>
+                        <button class="btn btn-secondary" onclick="goToStep(4)">Back to Style</button>
+                        <button class="btn btn-secondary" onclick="resetApp()">Start Over</button>
                         <button class="btn btn-info" onclick="copyMarkdown()">Copy Markdown</button>
-                        <button class="btn btn-primary btn-glow" onclick="downloadShowroom()">Download Showroom HTML</button>
+                        <button class="btn btn-primary" onclick="downloadShowroom()">Download Showroom</button>
                     </div>
                 </div>
             </section>

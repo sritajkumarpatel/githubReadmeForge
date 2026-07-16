@@ -35,6 +35,7 @@ Thumbs.db
 # Generated output
 readme_forge_output/
 showroom.html
+server.log
 
 # Temporary clone directories
 readme_forge_clone_*

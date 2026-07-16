@@ -3,12 +3,11 @@ let currentStep = 1;
 let scanContext = null;
 let analysisContext = null;
 let providerConfig = {
-    provider: 'mock',
+    provider: '',
     model: '',
     api_key: '',
     ollama_host: 'http://localhost:11434'
 };
-let isGuidedMode = false;
 
 // Initialize marked
 marked.setOptions({
@@ -35,17 +34,17 @@ function goToStep(step) {
         targetPanel.classList.add('active');
     }
 
-    // Update step dots classes
-    document.querySelectorAll('.step-dot').forEach(dot => {
-        const dotStep = parseInt(dot.getAttribute('data-step'));
-        dot.classList.remove('active');
-        if (dotStep === step) {
-            dot.classList.add('active');
+    // Update step indicator classes
+    document.querySelectorAll('.step-item').forEach(item => {
+        const itemStep = parseInt(item.getAttribute('data-step'));
+        item.classList.remove('active');
+        if (itemStep === step) {
+            item.classList.add('active');
         }
-        if (dotStep < step) {
-            dot.classList.add('completed');
+        if (itemStep < step) {
+            item.classList.add('completed');
         } else {
-            dot.classList.remove('completed');
+            item.classList.remove('completed');
         }
     });
 
@@ -64,10 +63,6 @@ function handleProviderChange() {
     modelGroup.style.display = 'none';
     ollamaGroup.style.display = 'none';
     opencodeGroup.style.display = 'none';
-
-    if (provider === 'mock') {
-        return;
-    }
 
     if (provider === 'ollama') {
         modelGroup.style.display = 'flex';
@@ -89,7 +84,7 @@ async function fetchModels() {
     const modelSelect = document.getElementById('model-select');
     const modelLoading = document.getElementById('model-loading');
 
-    if (provider === 'mock' || provider === 'ollama' || provider === 'opencode') {
+    if (provider === 'ollama' || provider === 'opencode') {
         return;
     }
 
@@ -141,7 +136,7 @@ function validateLLMConfig() {
     const ollamaHost = document.getElementById('ollama-host-input').value.trim();
     const opencodeHost = document.getElementById('opencode-host-input').value.trim();
 
-    if (provider !== 'mock' && provider !== 'ollama' && provider !== 'opencode' && !apiKey) {
+    if (provider !== 'ollama' && provider !== 'opencode' && !apiKey) {
         showNotification('API Key is required for the selected provider.', 'error');
         return;
     }
@@ -297,154 +292,30 @@ function selectStyle(styleName) {
     });
 }
 
-// ROUTE SELECT METHOD & TERMINAL CONSOLE VARIABLES
-const terminalQuestions = [
-    {
-        key: 'style_confirmation',
-        prompt: (style) => `Agent: You have selected the '${style}' layout style. Do you want to use this layout, or override it now?\n(Type 'yes' to proceed, or specify override: visual_rich, minimalist, enterprise)`
-    },
-    {
-        key: 'custom_persona',
-        prompt: () => `Agent: Refine the project description/summary if you'd like. (Type 'no' or press Enter to skip)`
-    },
-    {
-        key: 'custom_sections',
-        prompt: () => `Agent: Specify any custom documentation sections to append (e.g. CLI argument table, Docker setups). (Type 'no' or press Enter to skip)`
-    },
-    {
-        key: 'custom_examples',
-        prompt: () => `Agent: Provide a code snippet or usage command to feature in the Examples block. (Type 'no' or press Enter to skip)`
-    },
-    {
-        key: 'custom_contact',
-        prompt: () => `Agent: Provide support details or contact emails. (Type 'no' or press Enter to skip)`
-    }
-];
-
-let terminalQIndex = 0;
-let terminalAnswers = {};
-
-function printTerminalLine(text, type = 'agent') {
-    const log = document.getElementById('terminal-log');
-    if (!log) return;
-    
-    const line = document.createElement('div');
-    line.className = `terminal-line ${type}`;
-    line.textContent = text;
-    log.appendChild(line);
-    
-    // Scroll to bottom
-    const body = document.getElementById('terminal-body');
-    if (body) {
-        log.scrollTop = log.scrollHeight;
-    }
-}
-
-function showGuidedSetup() {
-    isGuidedMode = true;
-    goToStep(5);
-    
-    // Reset Terminal Console State
-    terminalQIndex = 0;
-    terminalAnswers = {};
-    
-    const log = document.getElementById('terminal-log');
-    if (log) log.innerHTML = '';
-    
-    printTerminalLine("Agent: Launching interactive terminal configurations loop. Strict guardrails active.", "system");
-    printTerminalLine(terminalQuestions[0].prompt(selectedStyle), "agent");
-    
-    // Focus input
-    setTimeout(() => {
-        const input = document.getElementById('terminal-input');
-        if (input) input.focus();
-    }, 100);
-}
-
-// CLIENT-SIDE GUARDRAIL CHECKER
-function isOffTopic(input) {
-    const text = input.toLowerCase().trim();
-    const offTopicKeywords = [
-        "write a program", "write a function", "write code to", "write a script",
-        "sum program", "calculator program", "write a sum", "solve this", "math program",
-        "create a program", "build a program", "coding script", "program that", "math solver"
-    ];
-    return offTopicKeywords.some(keyword => text.includes(keyword));
-}
-
-// PROCESS TERMINAL CONSOLE INPUT
-function handleTerminalInput(value) {
-    const trimmed = value.trim();
-    printTerminalLine(`forge_user $ ${value}`, "user");
-    
-    if (!trimmed) {
-        // Handle empty input as skipping
-        processAnswer("");
-        return;
-    }
-    
-    // Check Guardrails
-    if (isOffTopic(trimmed)) {
-        printTerminalLine("Agent [Error]: Rejection - This request is unrelated to README generation. Please ask documentation-related questions.", "error");
-        return;
-    }
-    
-    processAnswer(trimmed);
-}
-
-function processAnswer(answer) {
-    const currentQ = terminalQuestions[terminalQIndex];
-    
-    if (currentQ.key === 'style_confirmation') {
-        const val = answer.toLowerCase();
-        if (val === 'visual_rich' || val === 'minimalist' || val === 'enterprise') {
-            selectStyle(val);
-            printTerminalLine(`[System] Style layout overridden to '${selectedStyle}'.`, "system");
-        } else {
-            printTerminalLine(`[System] Preserving selected layout style: '${selectedStyle}'.`, "system");
-        }
-    } else {
-        if (answer && answer.toLowerCase() !== 'no') {
-            terminalAnswers[currentQ.key] = answer;
-        }
-    }
-    
-    // Next question
-    terminalQIndex++;
-    
-    if (terminalQIndex < terminalQuestions.length) {
-        // Ask next
-        printTerminalLine(terminalQuestions[terminalQIndex].prompt(), "agent");
-    } else {
-        // Finish Q&A
-        printTerminalLine("[System] Submitting configuration parameters. Orchestrating agents...", "system");
-        
-        // Compile answers block
-        const answersList = [];
-        if (terminalAnswers.custom_persona) answersList.push(`- Project Summary Override: ${terminalAnswers.custom_persona}`);
-        if (terminalAnswers.custom_sections) answersList.push(`- Custom Sections: ${terminalAnswers.custom_sections}`);
-        if (terminalAnswers.custom_examples) answersList.push(`- Custom Usage Examples Code:\n\`\`\`\n${terminalAnswers.custom_examples}\n\`\`\``);
-        if (terminalAnswers.custom_contact) answersList.push(`- Support Contacts: ${terminalAnswers.custom_contact}`);
-
-        const customAnswers = answersList.join('\n');
-        startGeneration(false, customAnswers);
-    }
-}
-
 // GENERATION API CALL
 async function startGeneration(isInstant, compiledAnswers = '') {
-    // Prepare loader in current pane or transition to temporary step
-    const loader = document.getElementById('ingest-loader');
-    const actions = document.getElementById('ingest-actions');
-    const loaderStatus = document.getElementById('loader-status');
+    // Use dashboard loader on step 4 instead of jumping to ingest
+    const loader = document.getElementById('dashboard-loader');
+    const loaderStatus = document.getElementById('dashboard-loader-status');
+    const dashboardActions = document.getElementById('dashboard-actions');
 
-    // Display loader overlay
+    // Display loader overlay on dashboard
     loader.style.display = 'flex';
-    actions.style.display = 'none';
+    if (dashboardActions) dashboardActions.style.display = 'none';
     loaderStatus.textContent = "Writer Agent forging markdown README.md & showroom page...";
-    
-    // Jump to ingest page temporarily to show progress
-    goToStep(3);
+
+    const statusMessages = [
+        "Writer Agent preparing README structure...",
+        "Writer Agent drafting narrative sections...",
+        "Writer Agent generating code examples...",
+        "Writer Agent building showroom showcase..."
+    ];
+    let msgIdx = 0;
+    const statusInterval = setInterval(() => {
+        if (msgIdx < statusMessages.length) {
+            loaderStatus.textContent = statusMessages[msgIdx++];
+        }
+    }, 4000);
 
     try {
         const response = await fetch('/api/generate', {
@@ -463,69 +334,233 @@ async function startGeneration(isInstant, compiledAnswers = '') {
             })
         });
 
+        clearInterval(statusInterval);
         const data = await response.json();
         loader.style.display = 'none';
-        actions.style.display = 'flex';
+        if (dashboardActions) dashboardActions.style.display = 'flex';
 
         if (!data.success) {
             showNotification(`Generation failed: ${data.error}`, 'error');
-            goToStep(isInstant ? 4 : 5);
             return;
         }
 
         // Render preview content
         displayGeneratedOutputs(data.readme, data.showroom);
-        
-        // Hide Q&A step 5 indicator if instant mode was chosen
-        if (isInstant) {
-            document.getElementById('qa-indicator').style.display = 'none';
-        }
 
-        goToStep(6);
+        goToStep(5);
 
     } catch (err) {
+        clearInterval(statusInterval);
         loader.style.display = 'none';
-        actions.style.display = 'flex';
+        if (dashboardActions) dashboardActions.style.display = 'flex';
         showNotification(`Generation request failed: ${err}`, 'error');
-        goToStep(isInstant ? 4 : 5);
     }
 }
 
 // DISPLAY PREVIEWS IN STEP 6
 function displayGeneratedOutputs(readme, showroom) {
-    // 1. Raw code editor
-    const textarea = document.getElementById('raw-readme-text');
-    textarea.value = readme;
-
-    // 2. Render markdown visual preview (Marked + post process Mermaid)
-    const readmeBody = document.getElementById('rendered-readme-body');
-    let html = marked.parse(readme);
-
-    // Convert code blocks with language-mermaid into divs to render
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    const mermaidCodes = doc.querySelectorAll('pre code.language-mermaid');
-    
-    mermaidCodes.forEach(codeNode => {
-        const preNode = codeNode.parentElement;
-        const divNode = document.createElement('div');
-        divNode.className = 'mermaid';
-        divNode.textContent = codeNode.textContent.trim();
-        preNode.replaceWith(divNode);
-    });
-
-    readmeBody.innerHTML = doc.body.innerHTML;
-
-    // Trigger mermaid rendering safely
     try {
-        mermaid.run({ querySelector: '.mermaid' });
+        // 1. Raw code editor
+        const textarea = document.getElementById('raw-readme-text');
+        textarea.value = readme;
+
+        // 2. Render markdown visual preview (Marked + post process Mermaid)
+        const readmeBody = document.getElementById('rendered-readme-body');
+        if (!readmeBody) {
+            console.error("Element #rendered-readme-body not found");
+            return;
+        }
+
+        let html = marked.parse(readme);
+
+        // Convert code blocks with language-mermaid into divs to render
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const mermaidCodes = doc.querySelectorAll('pre code.language-mermaid');
+
+        mermaidCodes.forEach(codeNode => {
+            const preNode = codeNode.parentElement;
+            const divNode = document.createElement('div');
+            divNode.className = 'mermaid';
+            divNode.textContent = codeNode.textContent.trim();
+            preNode.replaceWith(divNode);
+        });
+
+        readmeBody.innerHTML = doc.body.innerHTML;
+
+        // Render mermaid diagrams safely
+        const mermaidDivs = readmeBody.querySelectorAll('.mermaid');
+        if (mermaidDivs.length > 0) {
+            mermaidDivs.forEach(div => {
+                try {
+                    const id = 'mermaid-' + Math.random().toString(36).substr(2, 9);
+                    mermaid.render(id, div.textContent.trim()).then(svg => {
+                        div.innerHTML = svg;
+                    }).catch(err => {
+                        console.warn("Mermaid render failed, showing code:", err);
+                        div.innerHTML = '<pre>' + div.textContent.trim() + '</pre>';
+                    });
+                } catch (err) {
+                    console.warn("Mermaid error:", err);
+                    div.innerHTML = '<pre>' + div.textContent.trim() + '</pre>';
+                }
+            });
+        }
+
+        // 3. Compute and render diff
+        computeAndRenderDiff(readme);
+
+        // 4. Render Showroom webpage inside iframe
+        const iframe = document.getElementById('showroom-preview-iframe');
+        if (!iframe) {
+            console.error("Element #showroom-preview-iframe not found");
+            return;
+        }
+        iframe.srcdoc = showroom || '';
     } catch (err) {
-        console.error("Mermaid canvas rendering error:", err);
+        console.error("Error in displayGeneratedOutputs:", err);
+        showNotification("Error displaying output: " + err.message, 'error');
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function computeAndRenderDiff(newReadme) {
+    const oldReadme = scanContext?.existing_readme || '';
+    const oldSide = document.getElementById('diff-old');
+    const newSide = document.getElementById('diff-new');
+    const summaryContent = document.getElementById('diff-summary-content');
+
+    if (!oldReadme || oldReadme.trim() === '') {
+        document.getElementById('diff-summary-content').innerHTML =
+            '<div style="padding: 20px; color: var(--text-secondary);">No existing README found to compare. This is a new README generation.</div>';
+        oldSide.innerHTML = '<div style="padding: 20px; color: var(--text-secondary);">No original README.</div>';
+        newSide.innerHTML = escapeHtml(newReadme);
+        return;
     }
 
-    // 3. Render Showroom webpage inside iframe
-    const iframe = document.getElementById('showroom-preview-iframe');
-    iframe.srcdoc = showroom;
+    // Render both versions
+    oldSide.innerHTML = escapeHtml(oldReadme);
+    newSide.innerHTML = escapeHtml(newReadme);
+
+    // Compute diff for summary
+    const diff = computeDiff(oldReadme.split('\n'), newReadme.split('\n'));
+    const summary = summarizeChanges(diff);
+    renderSummary(summary, summaryContent);
+}
+
+function summarizeChanges(diff) {
+    const changes = [];
+    let currentSection = null;
+    const sectionKeywords = ['#', '##', '###', '**', 'Features', 'Installation', 'Usage', 'Configuration', 'License', 'Contributing', 'FAQ', 'Getting Started', 'Prerequisites', 'Setup'];
+
+    diff.forEach(part => {
+        if (part.type === 'removed' || part.type === 'added') {
+            const text = part.value.trim();
+            // Check if it's a header
+            const isHeader = sectionKeywords.some(kw => text.startsWith(kw));
+            if (isHeader) {
+                if (currentSection) {
+                    changes.push(currentSection);
+                }
+                currentSection = {
+                    title: text.substring(0, 60),
+                    type: part.type,
+                    lines: []
+                };
+            } else if (currentSection) {
+                currentSection.lines.push({ type: part.type, text: text.substring(0, 80) });
+            } else {
+                currentSection = {
+                    title: 'Other changes',
+                    type: part.type,
+                    lines: [{ type: part.type, text: text.substring(0, 80) }]
+                };
+            }
+        }
+    });
+
+    if (currentSection) {
+        changes.push(currentSection);
+    }
+
+    return changes.slice(0, 10);
+}
+
+function renderSummary(summary, container) {
+    if (!summary || summary.length === 0) {
+        container.innerHTML = '<div style="color: var(--text-secondary);">No significant changes detected.</div>';
+        return;
+    }
+
+    let html = '';
+    summary.forEach(item => {
+        const icon = item.type === 'added' ? '+' : '-';
+        const cls = item.type === 'added' ? 'added' : 'removed';
+        html += `<div class="change-item ${cls}">
+            <div class="change-title">${icon} ${escapeHtml(item.title)}</div>`;
+        if (item.lines && item.lines.length > 0) {
+            html += `<div class="change-desc">${escapeHtml(item.lines[0].text)}</div>`;
+        }
+        html += '</div>';
+    });
+
+    container.innerHTML = html;
+}
+
+function switchDiffTab(tab) {
+    const oldSide = document.getElementById('diff-old');
+    const newSide = document.getElementById('diff-new');
+    const tabs = document.querySelectorAll('.diff-tab');
+
+    tabs.forEach(t => t.classList.remove('active'));
+    if (tab === 'old') {
+        oldSide.style.display = 'block';
+        newSide.style.display = 'none';
+        tabs[0].classList.add('active');
+    } else {
+        oldSide.style.display = 'none';
+        newSide.style.display = 'block';
+        tabs[1].classList.add('active');
+    }
+}
+
+function computeDiff(oldLines, newLines) {
+    const result = [];
+    const m = oldLines.length;
+    const n = newLines.length;
+
+    const dp = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            if (oldLines[i - 1] === newLines[j - 1]) {
+                dp[i][j] = dp[i - 1][j - 1] + 1;
+            } else {
+                dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+            }
+        }
+    }
+
+    let i = m, j = n;
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
+            result.unshift({ type: 'context', value: oldLines[i - 1] });
+            i--;
+            j--;
+        } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+            result.unshift({ type: 'added', value: newLines[j - 1] });
+            j--;
+        } else {
+            result.unshift({ type: 'removed', value: oldLines[i - 1] });
+            i--;
+        }
+    }
+
+    return result;
 }
 
 // OUTPUT TABS SWITCHER
@@ -533,7 +568,15 @@ function switchOutputTab(tabId) {
     document.querySelectorAll('.out-tab-btn').forEach(btn => btn.classList.remove('active'));
     document.querySelectorAll('.out-tab-content').forEach(content => content.classList.remove('active'));
 
-    const btn = Array.from(document.querySelectorAll('.out-tab-btn')).find(b => b.textContent.toLowerCase().includes(tabId.split('-')[1]));
+    const btnMap = {
+        'html-readme': 'preview',
+        'diff-readme': 'compare',
+        'raw-readme': 'markdown'
+    };
+
+    const btn = Array.from(document.querySelectorAll('.out-tab-btn')).find(b =>
+        b.textContent.toLowerCase().includes(btnMap[tabId])
+    );
     if (btn) btn.classList.add('active');
 
     const content = document.getElementById(`tab-${tabId}`);
@@ -573,10 +616,9 @@ function downloadShowroom() {
 function resetApp() {
     scanContext = null;
     analysisContext = null;
-    isGuidedMode = false;
     selectedStyle = 'visual_rich';
     document.getElementById('repo-path-input').value = '.';
-    
+
     document.querySelectorAll('.style-card').forEach(card => {
         card.classList.remove('active');
         if (card.getAttribute('data-style') === 'visual_rich') {
@@ -590,18 +632,6 @@ function resetApp() {
 // On page load
 window.onload = function() {
     handleProviderChange();
-    
-    // Terminal input listener
-    const termInput = document.getElementById('terminal-input');
-    if (termInput) {
-        termInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                const val = termInput.value;
-                termInput.value = '';
-                handleTerminalInput(val);
-            }
-        });
-    }
 };
 
 // CUSTOM MINIMALIST TOAST NOTIFICATION

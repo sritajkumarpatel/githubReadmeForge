@@ -27,7 +27,8 @@ class Orchestrator:
         self.console.print(f"Provider: [bold green]{self.llm_client.provider}[/bold green], Model: [bold green]{self.llm_client.model}[/bold green]")
         
         if not self.llm_client.is_configured():
-            self.console.print("[yellow]LLM Client is not configured. Falling back to mock generator.[/yellow]")
+            self.console.print("[red]Error: LLM Client is not configured. Please provide API credentials.[/red]")
+            raise Exception("LLM provider not configured")
 
         scan_results = None
         analysis = None

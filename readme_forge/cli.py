@@ -18,8 +18,8 @@ def parse_args():
     )
     parser.add_argument(
         "--provider",
-        choices=["gemini", "openai", "claude", "ollama", "mock"],
-        help="LLM provider (defaults to 'gemini' if GEMINI_API_KEY exists, else 'mock')."
+        choices=["gemini", "openai", "claude", "ollama", "opencode"],
+        help="LLM provider (defaults to 'gemini' if GEMINI_API_KEY exists, else requires explicit selection)."
     )
     parser.add_argument(
         "--model",
@@ -87,7 +87,8 @@ def main():
         elif os.getenv("ANTHROPIC_API_KEY"):
             provider = "claude"
         else:
-            provider = "mock"
+            console.print("[red]Error: No LLM provider detected. Please set an API key environment variable (GEMINI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY) or use --provider to specify one.[/red]")
+            sys.exit(1)
 
     orchestrator = Orchestrator(
         target_path_or_url=args.path,

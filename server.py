@@ -27,12 +27,19 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        # Serve static assets from the 'web' folder
+        # Serve static assets from the 'web' folder or output folder
         parsed_path = urllib.parse.urlparse(self.path)
         clean_path = parsed_path.path
-        
+
         if clean_path == "/" or clean_path == "/index.html":
             file_path = project_root / "web" / "index.html"
+        elif clean_path.startswith("/assets/"):
+            # Check output directory first, then web directory
+            output_path = project_root / "readme_forge_output" / clean_path.lstrip("/")
+            if output_path.exists():
+                file_path = output_path
+            else:
+                file_path = project_root / "web" / clean_path.lstrip("/")
         else:
             # Strip leading slash and find file
             file_path = project_root / "web" / clean_path.lstrip("/")
@@ -41,7 +48,8 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         try:
             resolved_path = file_path.resolve()
             web_dir_resolved = (project_root / "web").resolve()
-            if not str(resolved_path).startswith(str(web_dir_resolved)):
+            output_dir_resolved = (project_root / "readme_forge_output").resolve()
+            if not str(resolved_path).startswith(str(web_dir_resolved)) and not str(resolved_path).startswith(str(output_dir_resolved)):
                 self.send_error(403, "Access Denied")
                 return
         except Exception:
@@ -50,7 +58,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
 
         if resolved_path.exists() and resolved_path.is_file():
             self.send_response(200)
-            
+
             # Content types
             suffix = resolved_path.suffix.lower()
             if suffix == ".html":
@@ -97,8 +105,8 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         provider = req_body.get("provider", "")
         api_key = req_body.get("api_key")
 
-        if not api_key or provider == "mock":
-            self._send_json({"success": True, "models": []})
+        if not api_key:
+            self._send_json({"success": False, "error": "API key is required"}, 400)
             return
 
         llm_client = LLMClient(provider=provider, api_key=api_key)
@@ -189,7 +197,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
 
         scan_results = req_body.get("scan")
         analysis = req_body.get("analysis")
-        provider = req_body.get("provider", "mock")
+        provider = req_body.get("provider")
         model = req_body.get("model")
         api_key = req_body.get("api_key")
         base_url = req_body.get("base_url")
