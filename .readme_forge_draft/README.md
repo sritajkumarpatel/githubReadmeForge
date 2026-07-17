@@ -9,48 +9,41 @@
 </p>
 
 
+<p align="center">
+  <img alt="Concise architecture flow" src="assets/readme/architecture.svg" width="100%">
+</p>
+
 # Spring Boot - JPA - Hibernate
+![License](https://img.shields.io/github/license/in/sritaj/spring-boot-jpa-hibernate)
+![Language](https://img.shields.io/github/languages/top/in/sritaj/spring-boot-jpa-hibernate)
 
-![License](https://img.shields.io/github/license/...)
-![Language](https://img.shields.io/github/languages/top/...)
-
-***A powerful Spring Boot application empowering users to manage their accounts and interests seamlessly through robust REST APIs.***
+***Unleashing the power of JPA and Hibernate in a robust Spring Boot application.***
 
 ---
 
 ## The Problem
+In today's fast-paced digital world, managing user accounts and appointments in web applications can become an overwhelming challenge. Users often find themselves navigating complex systems where CRUD (Create, Read, Update, Delete) operations are inconsistent, and relationships between multiple entities can quickly spiral into chaos. Frustration arises when:
 
-Managing user data and interests can often become a cumbersome task, resulting in inefficient workflows and subpar user experiences. Whether you're a developer trying to build user-centric applications or an organization aiming to manage user information effectively, the pain points are unmistakable:
-
-- **Data Disorganization**: User accounts and interests are frequently stored in disparate formats, making retrieval, updates, and management a hassle.
-- **Complex Workflows**: Without a robust system to streamline user operations, developers resort to convoluted code solutions that are hard to maintain and extend.
-- **Integration Barriers**: The varying performance of different databases can lead to compatibility issues, hindering smooth data flow and interaction with applications.
-
-These challenges demand a solution that not only organizes data but also provides seamless interaction among users and their interests.
-
----
+- Implementing CRUD operations requires excessive boilerplate code and time.
+- Poorly structured relationships between user accounts and appointments lead to data challenges.
+- Ensuring reliable data storage across various database systems can create integration nightmares.
+  
+These pain points not only hinder productivity but can also frustrate users seeking a seamless experience.
 
 ## The Solution
+Our Spring Boot application emerges as a beacon of efficiency amid these challenges. By providing a robust set of RESTful APIs, this application simplifies the management of user accounts and appointments, all while utilizing Spring’s JPA for seamless database interactions with Hibernate for Object-Relational Mapping (ORM). 
 
-This application leverages the power of Spring Boot along with JPA and Hibernate to provide a structured approach to managing user accounts and interests. By employing RESTful APIs, it ensures that interactions with the underlying database are both efficient and intuitive. 
-
-What sets this application apart is its core flexibility: 
-
-- **Unified Data Access**: With JPA and Hibernate integration, developers can effortlessly perform CRUD operations while ensuring optimal performance across different databases, including H2, MySQL, and MongoDB.
-- **Robust API Layer**: The application’s API layer is crafted to handle incoming requests and simplify user interactions, promoting a responsive and user-centric experience.
-- **Transaction Management**: By incorporating transaction management best practices, the application ensures data integrity during operations, especially in complex scenarios like transferring funds between accounts.
+What sets this project apart from traditional solutions is its ability to leverage the flexibility of multiple database systems (H2, MySQL, and MongoDB) without sacrificing performance or reliability. With a focus on simplicity and power, our application allows developers to effortlessly integrate, manage, and execute data transactions, leaving them free to innovate without being bogged down by mundane operations.
 
 ---
 
 ## Key Concepts
-
-| Term               | Definition                                                                 |
-|--------------------|---------------------------------------------------------------------------|
-| UserAccount        | Represents the user accounts, encapsulating fields such as username, password, and user details. |
-| Interest           | Represents interests linked to users, detailing preferences and hobbies.  |
-| Appointment        | Defines the structure needed for scheduling and managing appointments.    |
-| UserAccountController | Handles incoming API requests related to user management.              |
-| BankAccountServiceImpl | Contains business logic for managing user-related transactions.       |
+| Term | Definition |
+| --- | --- |
+| UserAccount | Represents a user's account information and associated interests. |
+| Appointment | Represents a doctor's appointment, encapsulating relevant details for effective management. |
+| BankAccount | Holds information regarding bank accounts, including the balance and owner details. |
+| Spring Data REST | Provides RESTful access to the Spring Data repositories, enabling seamless data management. |
 
 ---
 
@@ -60,43 +53,35 @@ What sets this application apart is its core flexibility:
 ![Architecture Diagram](assets/readme/architecture.svg)
 
 ### How It Works — Step-by-Step
-
-1. **Step 1 — User Registration**: An incoming request to `POST /api/users/register-user` triggers the `UserAccountController` which handles user data registration.
-2. **Step 2 — Interest Assignment**: Post user creation, the controller enables users to create and associate interests via `POST /api/interests/update/{userID}`.
-3. **Step 3 — Data Retrieval**: Users can fetch their account details through a simple `GET /api/users/user/{id}` call, facilitated by the `UserAccountController`.
-
-### Component Table
-
-| Component                                | Role                                           | Input                   | Output                        |
-|------------------------------------------|------------------------------------------------|-------------------------|-------------------------------|
-| UserAccountController                    | API Controller for user operations            | User registration data  | User account creation response |
-| BankAccountServiceImpl                   | Service layer for business logic               | User-related commands   | Processed user and interest data |
-| UserAccountSpringDataRepository          | Repository layer handling data access         | CRUD operations on UserAccount | Respective entity retrieval   |
+1. **Step 1 — User Registration**: The process begins at the `UserAccountController` when a client sends a POST request to `/api/users/register-user`, which invokes the `registerUser` method.
+2. **Step 2 — Data Persistence**: The `UserAccountSpringDataRepository` is called to persist user data in the designated database, orchestrated by Hibernate.
+3. **Step 3 — Appointment Management**: Clients can then manage appointments via `/api/appointments`, triggering methods within the `AppointmentSpringDataRepository` for CRUD operations on `Appointment` entities.
 
 ---
 
 ## Features
 
 ### User Registration and Management
-Provides REST APIs for user registration, retrieval, and management, simplifying user account handling and connection with their interests.
+This feature empowers users to easily register and manage their accounts, complete with personal details and interests. 
 
-### CRUD Operations Using JPA and Hibernate
-Facilitates Create, Read, Update, Delete operations on entities using JPA and Hibernate, enabling powerful database interactions with real-time data processing.
+### Appointment Scheduling
+The application supports the management of doctor appointment scheduling through comprehensive CRUD operations. This ensures that patients can easily create, read, update, and cancel appointments.
 
-### Transaction Management
-Handles transaction management for any bank account-related operations, ensuring data integrity during critical processes.
+### Transactional Operations
+Handling fund transfers between bank accounts is facilitated through this feature, guaranteeing transactional integrity and efficient data managing processes across various entities.
 
 ---
 
 ## Installation
-
-To set up the application, follow these steps:
-
-1. **Clone the repository**:
+1. Clone the repository:
    ```shell
-   git clone https://github.com/...
+   git clone https://github.com/in/sritaj/spring-boot-jpa-hibernate
    ```
-2. **Run the Spring Boot application**:
+2. Install the dependencies and build the project:
+   ```shell
+   mvn clean install
+   ```
+3. Run the Spring Boot application:
    ```shell
    ./mvnw spring-boot:run
    ```
@@ -104,92 +89,84 @@ To set up the application, follow these steps:
 ---
 
 ## Configuration & Parameters
-
-### Environment Variables
-
 <details>
-<summary>Click to expand</summary>
+<summary>Environment Variables</summary>
 
-| Variable                    | Description                                | Required | Default |
-|-----------------------------|--------------------------------------------|----------|---------|
-| spring.datasource.url       | The database URL for H2, MySQL, or MongoDB. | Yes      |         |
-| spring.datasource.username   | The username for database connections.      | Yes      |         |
-| spring.datasource.password   | The password for database connections.      | Yes      |         |
+| Variable                     | Description                              | Required | Default                   |
+| ---------------------------- | ---------------------------------------- | -------- | ------------------------- |
+| spring.datasource.url        | The database connection URL              | Yes      | jdbc:h2:mem:testdb       |
+| spring.datasource.username    | The database username                      | Yes      | sa                        |
+| spring.datasource.password    | The database password                      | Yes      |                           |
+| spring.jpa.hibernate.ddl-auto | The strategy for schema generation       | Yes      | update                    |
 
 </details>
 
 ---
 
 ## API Reference
-
-### User Registration API
 - **POST** `/api/users/register-user`: Registers a new user account.
-  - Example:
-    ```shell
-    curl -X POST -H "Content-Type: application/json" -d '{"userName": "newuser", "password": "securepass"}' http://localhost:8080/api/users/register-user
-    ```
+- **GET** `/api/users/all-users`: Retrieves a list of all user accounts.
+- **GET** `/api/users/user/{id}`: Finds users with matching age, city, and country for a specified user ID.
+- **POST** `/api/interests/update/{userID}`: Creates a new interest associated with a user.
+- **DELETE** `/api/interests/delete/{interestId}`: Deletes a specific interest based on ID.
 
-### Retrieve Users API
-- **GET** `/api/users/all-users`: Retrieves all registered users.
-  
-### Interest Management API
-- **POST** `/api/interests/update/{userID}`: Creates an interest for the specified user.
-- **DELETE** `/api/interests/delete/{interestId}`: Deletes the specified interest.
+### Example using curl
+
+To register a new user:
+
+```bash
+curl -X POST http://localhost:8080/api/users/register-user \
+-H "Content-Type: application/json" \
+-d '{"userName":"john_doe","password":"securePassword","age":30,"city":"New York","country":"USA","phoneNumber":"1234567890","gender":"Male"}'
+```
 
 ---
 
 ## Data Models
-
-| Field          | Type          | Description                        |
-|----------------|---------------|------------------------------------|
-| id             | Long          | Unique identifier for the user account. |
-| userName       | String        | Username of the user.               |
-| password       | String        | Password for user authentication.     |
-| age            | Integer       | Age of the user.                     |
-| city           | String        | City where the user resides.        |
-| country        | String        | Country of the user.                 |
-| phoneNumber    | String        | Contact number of the user.          |
-| gender         | String        | Gender of the user.                  |
+| Field          | Type        | Description                                      |
+| -------------- | ----------- | ------------------------------------------------ |
+| id             | Long        | Unique identifier for the UserAccount entity.   |
+| userName       | String      | Username of the user.                            |
+| password       | String      | Encrypted password of the user.                 |
+| age            | Integer     | Age of the user.                                |
+| city           | String      | City where the user resides.                    |
+| country        | String      | Country where the user resides.                 |
+| appointmentTime| Date        | Scheduled time for the appointment.             |
+| patient        | UserAccount | The user who has the appointment.               |
+| doctor         | String      | Doctor assigned for the appointment.            |
 
 ---
 
 ## Repository Structure
 ```plaintext
-readme_forge_clone_tob98jx0/
-├── .mvn/                      # Maven wrapper files
-│   └── wrapper/
-│       ├── maven-wrapper.jar
-│       └── maven-wrapper.properties
-├── src/
-│   ├── main/
-│   │   ├── java/
-│   │   │   └── in/
-│   │   │       └── sritaj/      # Main application Java package
-│   │   └── resources/
-│   │       ├── application.properties  # Configuration file
-│   │       ├── data.sql               # Test data for H2 database
-│   │       └── db_schema.sql          # Schema for MySQL
-├── test-data/                  # Assets for testing
-│   └── test.png
-├── test-download/              # Download test assets
-│   └── test.jpg
-├── .gitignore                  # Git ignore file
-├── README.md                   # Project documentation
-├── mvnw                        # Maven Wrapper executable
-├── mvnw.cmd                    # Maven Wrapper executable for Windows
-└── pom.xml                    # Maven configuration
+readme_forge_clone_nwsexgcw/
+├── .mvn/                            # Maven wrapper files
+│   └── wrapper/                     # Maven wrapper configuration
+│       ├── maven-wrapper.jar        # Jar file for Maven wrapper
+│       └── maven-wrapper.properties  # Properties for Maven wrapper
+├── src/                             # Source code
+│   ├── main/                        # Main application resources
+│   │   ├── java/                    # Java code
+│   │   │   └── in/                  # Main package
+│   │   │       └── sritaj/          # Project-specific code
+│   │   └── resources/               # Resource files including config
+│   │       ├── application.properties # Configs for the application
+│   │       ├── data.sql             # Seed data for H2 in-memory db
+│   │       ├── db_schema.sql        # SQL schema for MySQL
+│   │       ├── ehcache.xml          # Cache configuration file
+│   │       └── table.sql            # Table creation scripts
+│   └── test/                        # Test resources
+│       └── java/                    # Tests for the application
+│           └── in/                  # Test package
+│               └── sritaj/          # Specific test implementations
+├── .gitignore                       # Git ignore rules
+├── README.md                        # Project README
+├── mvnw                             # Maven wrapper shell script
+├── mvnw.cmd                         # Maven wrapper Windows script
+└── pom.xml                          # Maven project configuration
 ```
 
 ---
 
 ## Contributing & License
-
-We welcome contributions! For detailed guidelines, please refer to [CONTRIBUTING.md](CONTRIBUTING.md). 
-
-This project is licensed under the terms of the [MIT License](LICENSE). Test your implementations using:
-
-```shell
-./mvnw test
-``` 
-
-Rediscover the way you manage user data with a Spring Boot application that gives you the right tools at your fingertips. Get started today!
+We welcome contributions! Please see the [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. This project is licensed under the terms of the [MIT License](LICENSE).

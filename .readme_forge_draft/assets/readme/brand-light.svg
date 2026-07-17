@@ -1,18 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-label="Project">
   <rect width="1200" height="280" fill="#f7f9fc"/>
-  <rect x="100" y="50" width="250" height="180" rx="8" fill="#ffffff" stroke="#52627e" stroke-width="1"/>
-  <rect x="100" y="50" width="250" height="40" rx="8" fill="#6d5dfc" opacity="0.12"/>
-  <text x="225" y="75" text-anchor="middle" fill="#14213d" font-family="Arial, sans-serif" font-weight="bold" font-size="14">Source Code Input</text>
-  <text x="120" y="120" fill="#52627e" font-family="Arial, sans-serif" font-size="12">🗝️ id : INT</text>
-  <text x="120" y="150" fill="#52627e" font-family="Arial, sans-serif" font-size="12">🔹 path : VARCHAR</text>
-  <text x="120" y="180" fill="#52627e" font-family="Arial, sans-serif" font-size="12">🔹 content : TEXT</text>
-
-  <path d="M 370 140 H 490" stroke="#6d5dfc" stroke-width="3" marker-end="url(#arrow)"/>
-
-  <rect x="510" y="50" width="260" height="180" rx="8" fill="#ffffff" stroke="#52627e" stroke-width="1"/>
-  <rect x="510" y="50" width="260" height="40" rx="8" fill="#00c2a8" opacity="0.12"/>
-  <text x="640" y="75" text-anchor="middle" fill="#14213d" font-family="Arial, sans-serif" font-weight="bold" font-size="14">Analysis Output</text>
-  <text x="530" y="120" fill="#52627e" font-family="Arial, sans-serif" font-size="12">🗝️ analysis_id : INT</text>
-  <text x="530" y="150" fill="#52627e" font-family="Arial, sans-serif" font-size="12">🔹 sections : ARRAY</text>
-  <text x="530" y="180" fill="#52627e" font-family="Arial, sans-serif" font-size="12">🔹 strategy : VARCHAR</text>
+  <rect x="58" y="32" width="1084" height="216" rx="10" fill="#ffffff" stroke="#52627e" stroke-width="1" opacity="0.85"/>
+  <rect x="58" y="32" width="1084" height="34" rx="10" fill="#14213d" opacity="0.08"/>
+  <circle cx="82" cy="49" r="5" fill="#ff5f56"/>
+  <circle cx="98" cy="49" r="5" fill="#ffbd2e"/>
+  <circle cx="114" cy="49" r="5" fill="#27c93f"/>
+  <rect x="76" y="80" width="190" height="150" rx="6" fill="#f7f9fc" stroke="#52627e" stroke-width="1" opacity="0.5"/>
+  <rect x="290" y="80" width="828" height="150" rx="6" fill="#f7f9fc" stroke="#52627e" stroke-width="1" opacity="0.5"/>
+  <text x="318" y="132" fill="#14213d" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="700">Project</text>
+  <text x="318" y="168" fill="#52627e" font-family="Arial, Helvetica, sans-serif" font-size="17">This project is a Spring Boot application demonstrating capabilities of JPA and Hibernate f…</text>
+  <rect x="318" y="192" width="140" height="26" rx="13" fill="#6d5dfc" opacity="0.9"/>
+  <text x="388" y="209" fill="#ffffff" font-family="Arial, sans-serif" font-size="11" font-weight="bold" text-anchor="middle">UI Application</text>
 </svg>

@@ -593,32 +593,7 @@ async function startGeneration(isInstant, compiledAnswers = '', briefOptions = n
     }
 }
 
-// PUBLISH DRAFT TO THE REPOSITORY
-async function publishDraft() {
-    const publishBtn = document.getElementById('publish-btn');
-    if (publishBtn) publishBtn.disabled = true;
 
-    try {
-        const response = await fetch('/api/export', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                path: scanContext.path || '.'
-            })
-        });
-
-        const data = await response.json();
-        if (data.success) {
-            showNotification('README.md and visual assets successfully exported to your workspace!', 'success');
-        } else {
-            showNotification(`Export failed: ${data.error}`, 'error');
-        }
-    } catch (err) {
-        showNotification(`Export failed: ${err}`, 'error');
-    } finally {
-        if (publishBtn) publishBtn.disabled = false;
-    }
-}
 
 // Helper to escape special characters for Mermaid nodes safely
 function sanitizeMermaidText(text) {

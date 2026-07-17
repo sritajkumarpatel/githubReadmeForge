@@ -167,12 +167,28 @@ class APIRequestHandler(BaseHTTPRequestHandler):
             analysis = analyzer.analyze(scan_results)
             doc_plan = build_documentation_plan(analysis)
 
-            # Generate completeness score
-            score = self._calculate_readme_score(analysis, scan_results)
+            # Generate completeness score and deterministic gaps
+            score, deterministic_gaps = self._calculate_readme_score(analysis, scan_results)
+
+            # Merge deterministic gaps into analyzer's improvements so the UI Gaps Table
+            # shows exactly why points were deducted.
+            existing_improvements = analysis.get("improvements", []) or []
+            max_existing_id = 0
+            for imp in existing_improvements:
+                try:
+                    max_existing_id = max(max_existing_id, int(imp.get("id", "0") or "0"))
+                except (TypeError, ValueError):
+                    pass
+            for idx, gap in enumerate(deterministic_gaps):
+                gap["id"] = str(max_existing_id + idx + 1)
+                gap.pop("deduction", None)
+            merged_improvements = list(existing_improvements) + deterministic_gaps
+            analysis["improvements"] = merged_improvements
 
             self._send_json({
                 "success": True,
                 "score": score,
+                "score_gaps": deterministic_gaps,
                 "scan": scan_results,
                 "analysis": analysis,
                 "doc_plan": doc_plan
@@ -384,45 +400,103 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(data, indent=2).encode('utf-8'))
 
     def _calculate_readme_score(self, analysis, scan_results):
-        """Calculates a visual completeness rating out of 100 based on structural codebase scanning and analysis."""
+        """Calculates a visual completeness rating out of 100 based on structural codebase scanning and analysis.
+
+        Returns:
+            tuple: (score, gap_items) where gap_items is a list of dicts describing each deduction.
+        """
         existing_readme = scan_results.get("existing_readme", "").strip()
         if not existing_readme:
-            return 10  # Very poor default if README is empty
+            return 10, [{
+                "id": "0",
+                "title": "No existing README found",
+                "description": "This project has no README.md file. Generating a new one is required.",
+                "type": "Structure"
+            }]
 
         score = 100
         readme_lower = existing_readme.lower()
+        gap_items = []
+        gap_id = 0
+
+        def add_gap(title, description, gap_type, deduction):
+            nonlocal score, gap_id
+            gap_id += 1
+            score -= deduction
+            gap_items.append({
+                "id": str(gap_id),
+                "title": title,
+                "description": description,
+                "type": gap_type,
+                "deduction": deduction
+            })
 
         # 1. Check for visual elements (images, svgs, or mermaid diagrams)
         has_visuals = ("<img" in readme_lower or "![" in readme_lower or "```mermaid" in readme_lower)
         if not has_visuals:
-            score -= 20
+            add_gap(
+                "Missing visual elements",
+                "The README does not contain any images, badges, or Mermaid diagrams. Visuals increase engagement and clarify architecture.",
+                "Visual",
+                20
+            )
 
         # 2. Check for code examples / usage block
         has_usage = ("usage" in readme_lower or "quick start" in readme_lower or "getting started" in readme_lower)
         if not has_usage:
-            score -= 20
+            add_gap(
+                "Missing usage/quick-start section",
+                "The README lacks a 'Usage' or 'Quick Start' section. New users need a clear path to run the project.",
+                "Documentation",
+                20
+            )
 
         # 3. Check for installation block
         has_install = ("install" in readme_lower or "setup" in readme_lower)
         if not has_install:
-            score -= 20
+            add_gap(
+                "Missing installation instructions",
+                "The README does not include an 'Installation' or 'Setup' section with concrete steps.",
+                "Documentation",
+                20
+            )
 
         # 4. Check for configuration / environment variables
         has_config = any(term in readme_lower for term in ("config", "env", "port", "key"))
         if not has_config:
-            score -= 10
+            add_gap(
+                "Missing configuration documentation",
+                "The README has no documented environment variables, config options, or settings.",
+                "Configuration",
+                10
+            )
 
         # 5. Check for license / contributing
         has_license = ("license" in readme_lower or "mit" in readme_lower or "apache" in readme_lower)
         if not has_license:
-            score -= 10
+            add_gap(
+                "Missing license/contributing section",
+                "The README does not mention a License or Contributing guide. Open-source projects should clarify terms.",
+                "Legal",
+                10
+            )
 
         # Also deduct for improvements identified by analyzer
         improvements = analysis.get("improvements", [])
         if improvements:
-            score -= min(20, len(improvements) * 5)
+            deduction = min(20, len(improvements) * 5)
+            if deduction > 0:
+                gap_id += 1
+                gap_items.append({
+                    "id": str(gap_id),
+                    "title": f"{len(improvements)} AI-identified improvement(s)",
+                    "description": f"The analyzer identified {len(improvements)} additional areas for improvement across structure, examples, or clarity.",
+                    "type": "AI Analysis",
+                    "deduction": deduction
+                })
+                score -= deduction
 
-        return max(15, min(score, 100))
+        return max(15, min(score, 100)), gap_items
 
     def _handle_export(self):
         try:
