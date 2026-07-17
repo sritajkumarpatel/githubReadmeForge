@@ -10,8 +10,24 @@ from __future__ import annotations
 from typing import Any
 
 
-PROJECT_TYPES = {"learning", "poc", "library", "application", "cli", "api", "minimal"}
+# "demo" — showcase/example apps that are not tutorials.
+# "unknown" — analysis failed or confidence too low to classify meaningfully.
+PROJECT_TYPES = {"learning", "poc", "demo", "library", "application", "cli", "api", "minimal", "unknown"}
 MATURITY_LEVELS = {"production", "development", "poc", "unknown"}
+
+# Maps each primary_intent to the best-fitting visual asset strategy.
+# Used by WriterAgent to auto-select the SVG pack without requiring user input.
+INTENT_VISUAL_STRATEGY: dict[str, str] = {
+    "application": "ui_app",
+    "demo":        "ui_app",
+    "api":         "api",
+    "library":     "package",
+    "cli":         "package",
+    "learning":    "minimal",
+    "poc":         "minimal",
+    "minimal":     "minimal",
+    "unknown":     "minimal",
+}
 
 
 def _as_string_list(value: Any) -> list[str]:
@@ -34,6 +50,13 @@ def classify_repository(scan_results: dict[str, Any]) -> dict[str, Any]:
     A repository can be both a package and a CLI/API.  This intentionally
     reports those independently instead of asking one LLM label to carry all
     documentation decisions.
+
+    Returns a dict with:
+      primary_intent    — one of PROJECT_TYPES
+      delivery_surfaces — subset of {"package", "cli", "api", "ui"}
+      maturity          — one of MATURITY_LEVELS
+      confidence        — float 0.0–1.0
+      evidence          — list of {"claim", "source", "signal"} dicts
     """
     configs = scan_results.get("configs", {})
     code_context = scan_results.get("code_context", {})
@@ -50,6 +73,7 @@ def classify_repository(scan_results: dict[str, Any]) -> dict[str, Any]:
             surfaces.append(name)
         evidence.append({"claim": f"surface:{name}", "source": source, "signal": signal})
 
+    # ── Detect delivery surfaces ──────────────────────────────────────────
     package_files = {"pyproject.toml", "setup.py", "package.json", "Cargo.toml", "go.mod"}
     for file_name in sorted(package_files & config_names):
         add_surface("package", file_name, "package manifest detected")
@@ -72,45 +96,85 @@ def classify_repository(scan_results: dict[str, Any]) -> dict[str, Any]:
             add_surface("ui", "source code" if signal in joined_code else "repository tree", signal)
             break
     else:
-        # A plain HTML/JavaScript dashboard is still a UI application even when
-        # it does not use a named frontend framework.
+        # A plain HTML/JS dashboard is still a UI surface even without a named framework.
         ui_files = ("web/", "public/", "index.html", "app.js", "app.ts")
         for signal in ui_files:
             if signal in tree:
                 add_surface("ui", "repository tree", signal)
                 break
 
-    tutorial_terms = ("tutorial", "course", "exercise", "practice", "workshop", "example")
+    # ── Derive primary intent ─────────────────────────────────────────────
+    tutorial_terms = ("tutorial", "course", "exercise", "practice", "workshop")
+    demo_terms = (
+        "demo", "showcase", "showroom", "sample-app", "sample_app",
+        "example-app", "example_app", "starter", "boilerplate", "template",
+    )
+
     intent = "application"
+
     if any(term in tree for term in tutorial_terms):
         intent = "learning"
-        evidence.append({"claim": "intent:learning", "source": "repository tree", "signal": "tutorial-like name"})
-    elif len(code_context) <= 2 and not ({"package", "ui"} & set(surfaces)):
-        intent = "minimal"
-        evidence.append({"claim": "intent:minimal", "source": "source inventory", "signal": "two or fewer scanned source files"})
+        evidence.append({
+            "claim": "intent:learning",
+            "source": "repository tree",
+            "signal": "tutorial/course/exercise name pattern detected",
+        })
+    elif any(term in tree for term in demo_terms):
+        intent = "demo"
+        evidence.append({
+            "claim": "intent:demo",
+            "source": "repository tree",
+            "signal": "demo/showcase/sample name pattern detected",
+        })
     elif "ui" in surfaces:
+        # Any UI surface → application first (overrides sparse code check)
         intent = "application"
-    elif "package" in surfaces and not ({"cli", "api"} & set(surfaces)):
-        intent = "library"
     elif "api" in surfaces and "ui" not in surfaces:
         intent = "api"
     elif "cli" in surfaces and "ui" not in surfaces and "api" not in surfaces:
         intent = "cli"
+    elif "package" in surfaces and not ({"cli", "api"} & set(surfaces)):
+        intent = "library"
+    elif len(code_context) <= 2 and not surfaces:
+        # Only fall to minimal when there are genuinely very few files AND no surfaces detected
+        intent = "minimal"
+        evidence.append({
+            "claim": "intent:minimal",
+            "source": "source inventory",
+            "signal": "two or fewer scanned source files and no surface signals",
+        })
 
+    # ── Maturity from test signals ────────────────────────────────────────
     maturity = "development"
     test_signals = scan_results.get("test_signals", {})
     if isinstance(test_signals, dict) and test_signals.get("has_tests"):
-        evidence.append({"claim": "maturity:development", "source": "test signals", "signal": "tests detected"})
+        evidence.append({
+            "claim": "maturity:development",
+            "source": "test signals",
+            "signal": "test files detected",
+        })
     else:
         maturity = "unknown"
 
-    confidence = min(1.0, 0.35 + 0.15 * len(evidence))
+    # ── Confidence — degrade when evidence is thin ────────────────────────
+    raw_confidence = min(1.0, 0.35 + 0.15 * len(evidence))
+
+    # Downgrade to "unknown" intent when confidence is too low and no surfaces found.
+    if raw_confidence < 0.4 and not surfaces:
+        intent = "unknown"
+        evidence.append({
+            "claim": "intent:unknown",
+            "source": "classifier",
+            "signal": "insufficient signals to classify repository",
+        })
+
     return {
         "primary_intent": intent,
         "delivery_surfaces": surfaces,
         "maturity": maturity,
-        "confidence": round(confidence, 2),
+        "confidence": round(raw_confidence, 2),
         "evidence": evidence,
+        "suggested_visual_strategy": INTENT_VISUAL_STRATEGY.get(intent, "ui_app"),
     }
 
 
@@ -123,8 +187,14 @@ def build_documentation_plan(analysis: dict[str, Any]) -> dict[str, Any]:
     surfaces = _as_string_list(classification.get("delivery_surfaces", []))
     sections = ["title", "overview"]
 
-    if intent not in {"learning", "minimal"}:
+    # Problem / solution only make sense for substantive project types.
+    if intent not in {"learning", "minimal", "unknown"}:
         sections.extend(["problem", "solution"])
+
+    # Demo and PoC get a shorter "demonstration" section instead of full problem/solution.
+    # (They already got "problem" + "solution" above for poc/demo — that's intentional;
+    # they just get brief versions per the writer instructions.)
+
     if analysis.get("installation_commands") or "package" in surfaces:
         sections.append("installation")
     if analysis.get("cli_commands") or "cli" in surfaces:
@@ -150,6 +220,10 @@ def build_documentation_plan(analysis: dict[str, Any]) -> dict[str, Any]:
         "delivery_surfaces": surfaces,
         "include_architecture_diagram": len(_as_dict_list(analysis.get("connections"))) >= 2,
         "evidence_only": not bool(analysis.get("analysis_complete", True)),
+        "suggested_visual_strategy": classification.get(
+            "suggested_visual_strategy",
+            INTENT_VISUAL_STRATEGY.get(intent, "ui_app"),
+        ),
     }
 
 
@@ -160,9 +234,15 @@ def normalize_analysis(raw: Any, scan_results: dict[str, Any], analysis_complete
     raw_classification = raw.get("classification")
     if isinstance(raw_classification, dict):
         # Deterministic signals are authoritative for surfaces and evidence.
+        # Allow the LLM to override intent only within the known type set.
         requested_intent = raw_classification.get("primary_intent")
         if requested_intent in PROJECT_TYPES:
             classification["primary_intent"] = requested_intent
+            # Keep visual strategy consistent with (possibly LLM-overridden) intent.
+            classification["suggested_visual_strategy"] = INTENT_VISUAL_STRATEGY.get(
+                requested_intent,
+                classification["suggested_visual_strategy"],
+            )
 
     project_type = raw.get("project_type")
     if project_type not in PROJECT_TYPES:
@@ -174,7 +254,11 @@ def normalize_analysis(raw: Any, scan_results: dict[str, Any], analysis_complete
     normalized = {
         "project_name": raw.get("project_name") if isinstance(raw.get("project_name"), str) else "Project",
         "project_type": project_type,
-        "project_type_reason": raw.get("project_type_reason") if isinstance(raw.get("project_type_reason"), str) else "Derived from repository signals.",
+        "project_type_reason": (
+            raw.get("project_type_reason")
+            if isinstance(raw.get("project_type_reason"), str)
+            else "Derived from repository signals."
+        ),
         "project_maturity": project_maturity,
         "tech_stack": _as_string_list(raw.get("tech_stack")),
         "project_persona": raw.get("project_persona") if isinstance(raw.get("project_persona"), str) else "",

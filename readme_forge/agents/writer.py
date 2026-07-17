@@ -1,4 +1,6 @@
 import json
+import json
+import re
 from pathlib import Path
 from readme_forge.llm import LLMClient
 from readme_forge.agents.contracts import build_documentation_plan
@@ -120,11 +122,11 @@ class WriterAgent:
             project_type_instruction = (
                 "PROJECT TYPE: LEARNING/TUTORIAL\n"
                 "- Keep the README focused on teaching and learning\n"
-                "- Use simple, clear language\n"
-                "- Include step-by-step instructions\n"
-                "- Prioritize 'How to Learn' section with learning path\n"
-                "- Omit complex architecture diagrams - focus on simple flow\n"
+                "- Use simple, clear language with step-by-step instructions\n"
+                "- Prioritize a 'How to Learn' section with a clear learning path\n"
+                "- Omit complex architecture diagrams — focus on simple flows\n"
                 "- Include common pitfalls and how to avoid them\n"
+                "- Skip Problem/Solution sections; replace with 'What You Will Learn'\n"
             )
         elif project_type == "library":
             project_type_instruction = (
@@ -132,17 +134,17 @@ class WriterAgent:
                 "- Focus on installation, quick start, and API reference\n"
                 "- Include complete usage examples with code snippets\n"
                 "- Document all public functions/classes with parameters\n"
-                "- Add changelog and version information\n"
+                "- Add changelog and version information if available\n"
                 "- Omit lengthy problem/solution narratives\n"
             )
         elif project_type == "cli":
             project_type_instruction = (
                 "PROJECT TYPE: COMMAND-LINE TOOL\n"
                 "- Prioritize CLI commands and flags front-and-center\n"
-                "- Include a quick command reference table at top\n"
+                "- Include a quick command reference table near the top\n"
                 "- Show before/after examples of command usage\n"
-                "- Document all available commands and options\n"
-                "- Omit detailed architecture diagrams\n"
+                "- Document all available commands, flags, and options\n"
+                "- Keep architecture section minimal or omit entirely\n"
             )
         elif project_type == "api":
             project_type_instruction = (
@@ -156,26 +158,46 @@ class WriterAgent:
         elif project_type == "minimal":
             project_type_instruction = (
                 "PROJECT TYPE: MINIMAL/SMALL UTILITY\n"
-                "- Keep README very concise - 10 lines or less\n"
-                "- Include only: What it does, How to use, Quick example\n"
-                "- Skip detailed features, architecture, and multiple sections\n"
+                "- Keep README very concise — one screen or less\n"
+                "- Include only: What it does, How to use it, Quick example\n"
+                "- Skip detailed features, architecture, and multi-section layouts\n"
                 "- Use direct, no-frills formatting\n"
             )
         elif project_type == "poc":
             project_type_instruction = (
                 "PROJECT TYPE: PROOF OF CONCEPT\n"
-                "- Describe the demonstrated capability and current limitations honestly\n"
-                "- Keep problem and solution sections brief\n"
-                "- Do not imply production readiness, deployment guarantees, or complete APIs\n"
+                "- Lead with the specific hypothesis or capability being demonstrated\n"
+                "- Describe current limitations and what is NOT yet implemented honestly\n"
+                "- Keep problem and solution sections to a single brief paragraph each\n"
+                "- Add a prominent '⚠ Not production-ready' callout near the top\n"
+                "- Do not imply production readiness, deployment guarantees, or stable APIs\n"
             )
-        else:  # application
+        elif project_type == "demo":
+            project_type_instruction = (
+                "PROJECT TYPE: DEMO / SHOWCASE\n"
+                "- Lead with what the demo demonstrates and include a 'See It In Action' section\n"
+                "- Add a prominent 'Try It Now' quickstart — the demo must run in ≤ 3 commands\n"
+                "- Include screenshots or diagram references to show the visual output\n"
+                "- Keep setup instructions minimal; the reader should be running it in under 5 minutes\n"
+                "- Acknowledge explicitly that the demo is not hardened for production\n"
+                "- Omit lengthy API reference or detailed configuration sections\n"
+            )
+        elif project_type == "unknown":
+            project_type_instruction = (
+                "PROJECT TYPE: UNCLASSIFIED / UNKNOWN\n"
+                "- Keep the README factual and concise — document only what is confirmed\n"
+                "- Do not speculate about features, use-cases, or design decisions\n"
+                "- Use an evidence-only structure: describe the file tree and detected components\n"
+                "- Add a note: 'This project could not be automatically classified. Contents below reflect detected code.'\n"
+                "- Omit Problem/Solution sections entirely\n"
+            )
+        else:  # application (default)
             project_type_instruction = (
                 "PROJECT TYPE: FULL APPLICATION\n"
-                "- Lead with the user-facing workflow and interface, not internal implementation details\n"
-                "- Comprehensive documentation with all sections\n"
-                "- Include complete feature list and architecture\n"
-                "- Document configuration, deployment, and troubleshooting\n"
-                "- Add contributing guidelines and license\n"
+                "- Lead with the user-facing workflow and interface, not internal implementation\n"
+                "- Provide comprehensive documentation with all relevant sections\n"
+                "- Include complete feature list, architecture overview, and configuration guide\n"
+                "- Document deployment, troubleshooting, and contributing guidelines\n"
             )
 
         # Build rich context strings from all analysis fields using safety coercion helpers
@@ -253,13 +275,23 @@ class WriterAgent:
         evidence_only = bool(documentation_plan.get("evidence_only"))
         architecture_diagram = bool(documentation_plan.get("include_architecture_diagram"))
         visual_intro = ""
+        visual_assets = {}  # always initialise so post-processing can safely check it
         if style == "visual_rich" and output_dir:
             visual_generator = VisualAssetGenerator(Path(output_dir))
-            visual_pack = "ui_app"
-            no_external_assets = False
+
+            # Determine visual pack: brief overrides > classification suggestion > intent map > fallback
             if brief:
                 visual_pack = brief.get("visual_pack", "ui_app")
                 no_external_assets = bool(brief.get("no_external_assets"))
+            else:
+                # Auto-select from classification signal — no user input needed
+                doc_plan = analysis.get("documentation_plan", {})
+                visual_pack = (
+                    doc_plan.get("suggested_visual_strategy")
+                    or analysis.get("classification", {}).get("suggested_visual_strategy")
+                    or "ui_app"
+                )
+                no_external_assets = False
             visual_assets = visual_generator.generate(
                 analysis,
                 strategy=visual_pack,
@@ -313,22 +345,27 @@ class WriterAgent:
             "   - SKIP this section for cli, minimal, learning, poc project types.\n\n"
             "6. **How It Works** (ONLY if included in the documentation plan):\n"
             "   a) **Architecture Diagram**:\n"
-            "      - If visual_assets includes an architecture SVG, reference that existing asset and do NOT generate a second Mermaid diagram.\n"
-            "      - Otherwise, only when the plan enables it, use this EXACT concise Mermaid syntax:\n"
+            "      *** CRITICAL — READ CAREFULLY ***\n"
+            "      - Check the user prompt for 'Visual assets already generated'. If `architecture` key is non-empty, "
+            "that SVG already exists. Reference it with: `![Architecture](assets/readme/architecture.svg)` "
+            "and DO NOT generate ANY Mermaid block. Generating a second diagram when an SVG exists is FORBIDDEN.\n"
+            "      - Only generate a Mermaid diagram when `architecture` is empty/missing in visual_assets.\n"
+            "      - When generating Mermaid, use ONLY this exact syntax:\n"
             "      ```mermaid\n"
             "      flowchart TD\n"
-            "          A[ComponentName] --> B[ComponentName]\n"
-            "          B --> C{DecisionPoint}\n"
-            "          C -->|yes| D[Output]\n"
-            "          C -->|no| E[AltOutput]\n"
+            "          A[\"ComponentName\"] --> B[\"ComponentName\"]\n"
+            "          B --> C{\"DecisionPoint\"}\n"
+            "          C -->|yes| D[\"Output\"]\n"
+            "          C -->|no| E[\"AltOutput\"]\n"
             "      ```\n"
-            "      STRICT RULES for the diagram:\n"
-            "      - Use `flowchart TD` (NOT `graph TD`).\n"
-            "      - Node labels MUST be in square brackets: A[Label]. NO parentheses.\n"
-            "      - Use REAL component/file names from the codebase (e.g. `ReaderAgent`, `server.py`, `WriterAgent`).\n"
-            "      - Maximum 5 nodes and 4 arrows. Show only the user-critical path.\n"
-            "      - Never show utility files, helpers, wrappers, or every dependency merely because they exist.\n"
-            "      - NEVER use parentheses in node labels — they break Mermaid. Escape or remove them.\n\n"
+            "      STRICT MERMAID RULES — violations will cause render failures:\n"
+            "      - ALWAYS use `flowchart TD` — NEVER `graph TD` or `graph LR`.\n"
+            "      - Node IDs must be single alphanumeric words: A, B, ReaderAgent, CLI (NO spaces, NO slashes).\n"
+            "      - Node labels MUST always be quoted strings: A[\"My Label\"] — NEVER A[My Label].\n"
+            "      - Decision diamonds: C{\"Decision?\"} — NEVER C(Decision).\n"
+            "      - NEVER put parentheses inside label strings. Write 'Reader Agent' not 'Reader (Agent)'.\n"
+            "      - Maximum 6 nodes and 5 arrows. Show only the user-critical path.\n"
+            "      - Never show utility files, helpers, or every dependency merely because they exist.\n\n"
             "   b) **How It Works — Step-by-Step**:\n"
             "      After the diagram, write a numbered walkthrough:\n"
             "      1. **Step N — Name**: What triggers or initiates this step (use real file/function names).\n"
@@ -423,6 +460,17 @@ class WriterAgent:
             user_prompt += f"\nHere is the existing README content for reference:\n{scan_results.get('existing_readme')}\n"
 
         readme_markdown = self.llm_client.generate(system_prompt, user_prompt)
+
+        # Post-process: strip any Mermaid blocks if an architecture SVG was already generated.
+        # The LLM sometimes generates both despite instructions; the SVG is always preferred.
+        if visual_assets and visual_assets.get("architecture"):
+            readme_markdown = re.sub(
+                r'```mermaid\s*\n.*?\n```',
+                f'![Architecture flow](assets/readme/architecture.svg)',
+                readme_markdown,
+                flags=re.DOTALL
+            )
+
         if visual_intro and "assets/readme/brand-light.svg" not in readme_markdown:
             return f"{visual_intro}\n\n{readme_markdown.lstrip()}"
         return readme_markdown

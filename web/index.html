@@ -9,10 +9,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <!-- CSS link -->
     <link rel="stylesheet" href="styles.css">
-    <!-- Marked Markdown Parser CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <!-- Mermaid Diagram Renderer CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <!-- Marked Markdown Parser CDN (pinned) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+    <!-- Mermaid Diagram Renderer CDN (pinned to v10 — stable flowchart syntax) -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
 </head>
 <body>
     <div class="glass-bg"></div>
@@ -186,6 +186,7 @@
                                 <span class="score-label">Score</span>
                             </div>
                             <h3>README Health Index</h3>
+                            <span class="score-status good">—</span>
                         </div>
                         <!-- Persona summary -->
                         <div class="summary-box">
@@ -307,10 +308,22 @@
                             </div>
 
                             <div class="brief-card" style="margin-top: 1rem;">
+                                <h3>README Style Theme</h3>
+                                <p class="box-sub">Controls the visual formatting and tone of the generated README.</p>
+                                <div class="form-group" style="margin-top: 0.75rem;">
+                                    <select id="brief-style-select" style="width: 100%; padding: 0.75rem; border-radius: 8px; background: var(--card-bg); border: 1px solid var(--card-border); color: var(--text-primary); font-family: inherit; font-size: 0.9rem;">
+                                        <option value="visual_rich" selected>Visual Rich — Badges, icons, SVG banners</option>
+                                        <option value="minimalist">Minimalist — Clean text, no heavy visuals</option>
+                                        <option value="enterprise">Enterprise — Formal, tables, compliance sections</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="brief-card" style="margin-top: 1rem;">
                                 <h3>Select Target Language</h3>
                                 <p class="box-sub">Choose the language for the forged README.md file.</p>
                                 <div class="form-group" style="margin-top: 1rem;">
-                                    <select id="lang-select" style="width: 100%; padding: 0.75rem; border-radius: 8px; background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-primary); font-family: inherit;">
+                                    <select id="lang-select" style="width: 100%; padding: 0.75rem; border-radius: 8px; background: var(--card-bg); border: 1px solid var(--card-border); color: var(--text-primary); font-family: inherit;">
                                         <option value="en" selected>English</option>
                                         <option value="zh-CN">Simplified Chinese (简体中文)</option>
                                         <option value="es">Spanish (Español)</option>

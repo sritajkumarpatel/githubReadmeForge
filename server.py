@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import argparse
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
@@ -35,9 +36,12 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         if clean_path == "/" or clean_path == "/index.html":
             file_path = project_root / "web" / "index.html"
         elif clean_path.startswith("/assets/"):
-            # Check output directory first, then web directory
+            # Check draft directory, then output directory, then web directory
+            draft_path = project_root / ".readme_forge_draft" / clean_path.lstrip("/")
             output_path = project_root / "readme_forge_output" / clean_path.lstrip("/")
-            if output_path.exists():
+            if draft_path.exists():
+                file_path = draft_path
+            elif output_path.exists():
                 file_path = output_path
             else:
                 file_path = project_root / "web" / clean_path.lstrip("/")
@@ -50,7 +54,10 @@ class APIRequestHandler(BaseHTTPRequestHandler):
             resolved_path = file_path.resolve()
             web_dir_resolved = (project_root / "web").resolve()
             output_dir_resolved = (project_root / "readme_forge_output").resolve()
-            if not str(resolved_path).startswith(str(web_dir_resolved)) and not str(resolved_path).startswith(str(output_dir_resolved)):
+            draft_dir_resolved = (project_root / ".readme_forge_draft").resolve()
+            if (not str(resolved_path).startswith(str(web_dir_resolved)) and 
+                not str(resolved_path).startswith(str(output_dir_resolved)) and
+                not str(resolved_path).startswith(str(draft_dir_resolved))):
                 self.send_error(403, "Access Denied")
                 return
         except Exception:
@@ -557,7 +564,16 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         try:
             from readme_forge.agents.drift import DriftDetector
             detector = DriftDetector(target_path)
-            drifts = detector.detect(scan_results, analysis)
+
+            # Always prefer the README content already captured in scan_results.
+            # For remote repos the clone is deleted by the time drift is called,
+            # so reading from disk would always fail.
+            existing_readme = (scan_results.get("existing_readme") or "").strip()
+            if existing_readme:
+                drifts = detector.detect_from_content(existing_readme, scan_results, analysis)
+            else:
+                drifts = detector.detect(scan_results, analysis)
+
             self._send_json({
                 "success": True,
                 "drift": drifts
@@ -565,9 +581,6 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         except Exception as e:
             self._send_json({"success": False, "error": f"Drift detection failed: {e}"}, 500)
 
-
-
-import urllib.parse
 
 def run_server(port=8080):
     # Ensure web folder exists

@@ -3,11 +3,13 @@ let currentStep = 1;
 let scanContext = null;
 let analysisContext = null;
 let docPlanContext = null;
+let currentDraftId = '.readme_forge_draft'; // updated after each generate call
 let providerConfig = {
     provider: '',
     model: '',
     api_key: '',
-    ollama_host: 'http://localhost:11434'
+    ollama_host: 'http://localhost:11434',
+    opencode_host: 'http://127.0.0.1:4096'
 };
 
 // ── localStorage persistence keys ─────────────────────────────────────────
@@ -34,13 +36,12 @@ function _restoreProviderPrefs() {
             const sel = document.getElementById('provider-select');
             if (sel) {
                 sel.value = provider;
-                handleProviderChange(); // show/hide api-key / host fields
+                handleProviderChange();
             }
         }
         if (model) {
             const ms = document.getElementById('model-select');
             if (ms) {
-                // Add option if not present (saved model may not be in the default list)
                 if (!ms.querySelector(`option[value="${model}"]`)) {
                     const opt = document.createElement('option');
                     opt.value = model;
@@ -63,22 +64,34 @@ function _getErrorMessage(data) {
     return (data.error || 'An unknown error occurred.') + hint;
 }
 
-// Initialize marked
-marked.setOptions({
+// ── marked (markdown parser) init ─────────────────────────────────────────
+marked.use({
     breaks: true,
     gfm: true
 });
 
-// Initialize mermaid
+// ── Mermaid init — pinned v10, lenient parsing ─────────────────────────────
 mermaid.initialize({
     startOnLoad: false,
-    theme: 'dark'
+    theme: 'default',
+    securityLevel: 'loose',
+    flowchart: {
+        htmlLabels: true,
+        useMaxWidth: true,
+        curve: 'basis'
+    },
+    themeVariables: {
+        primaryColor: '#6d5dfc',
+        primaryTextColor: '#14213d',
+        primaryBorderColor: '#4a3fd4',
+        lineColor: '#52627e',
+        secondaryColor: '#f7f9fc',
+        tertiaryColor: '#e8edf5'
+    }
 });
 
-// Restore saved provider prefs once DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    _restoreProviderPrefs();
-});
+// Restore saved provider prefs and init provider UI once DOM is ready
+// (deferred to the single DOMContentLoaded handler at the bottom of this file)
 
 // STEP NAVIGATION
 function goToStep(step) {
@@ -299,51 +312,87 @@ function populateDashboard(score, analysis) {
     if (projectTypeBadge) projectTypeBadge.textContent = analysis.project_type || 'Unknown';
     if (maturityBadge) maturityBadge.textContent = analysis.project_maturity || 'Unknown';
 
-    // 1. Score gauge
+    // 1. Score gauge — animate counter and set conic gradient
     const scoreText = document.getElementById('score-text');
-    scoreText.textContent = score;
     const scoreCircle = document.querySelector('.score-circle');
-    // Calculate degree gradient border (360 degrees * (score/100))
+    const scoreGaugeBox = document.querySelector('.score-gauge-box');
+
+    // Determine status class for colour theming
+    const statusClass = score >= 85 ? 'score-excellent'
+        : score >= 65 ? 'score-good'
+        : score >= 40 ? 'score-fair'
+        : 'score-poor';
+
+    if (scoreGaugeBox) {
+        scoreGaugeBox.classList.remove('score-excellent', 'score-good', 'score-fair', 'score-poor');
+        scoreGaugeBox.classList.add(statusClass);
+    }
+
+    // Animate score counter from 0 → score
+    if (scoreText) {
+        scoreText.classList.remove('animate');
+        void scoreText.offsetWidth; // trigger reflow to restart animation
+        let current = 0;
+        const step = Math.ceil(score / 30);
+        const timer = setInterval(() => {
+            current = Math.min(current + step, score);
+            scoreText.textContent = current;
+            if (current >= score) clearInterval(timer);
+        }, 30);
+        scoreText.classList.add('animate');
+    }
+
+    // Set CSS variable for conic gradient arc
     const deg = Math.round((score / 100) * 360);
-    scoreCircle.style.setProperty('--score-deg', deg);
+    if (scoreCircle) scoreCircle.style.setProperty('--score-deg', deg);
+
+    // Show status badge text
+    const statusLabel = score >= 85 ? 'Excellent' : score >= 65 ? 'Good' : score >= 40 ? 'Fair' : 'Needs Work';
+    const existingStatus = document.querySelector('.score-status');
+    if (existingStatus) {
+        existingStatus.className = `score-status ${statusClass.replace('score-', '')}`;
+        existingStatus.textContent = statusLabel;
+    }
 
     // 2. Persona summary
     const personaText = document.getElementById('dashboard-persona');
-    personaText.textContent = analysis.project_persona || "A codebase repository.";
+    if (personaText) personaText.textContent = analysis.project_persona || "A codebase repository.";
 
     // 3. Tech Stack pills
     const techStack = document.getElementById('dashboard-tech-stack');
-    techStack.innerHTML = '';
-    const stack = analysis.tech_stack || [];
-    stack.forEach(tech => {
-        const pill = document.createElement('span');
-        pill.className = 'tech-pill';
-        pill.textContent = tech;
-        techStack.appendChild(pill);
-    });
+    if (techStack) {
+        techStack.innerHTML = '';
+        const stack = analysis.tech_stack || [];
+        stack.forEach(tech => {
+            const pill = document.createElement('span');
+            pill.className = 'tech-pill';
+            pill.textContent = tech;
+            techStack.appendChild(pill);
+        });
+    }
 
     // 4. Improvements table rows
     const tbody = document.getElementById('improvements-tbody');
-    tbody.innerHTML = '';
-    const improvements = analysis.improvements || [];
-    
-    if (improvements.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No improvement gaps identified. Your README is in top shape!</td></tr>`;
-        return;
-    }
+    if (tbody) {
+        tbody.innerHTML = '';
+        const improvements = analysis.improvements || [];
 
-    improvements.forEach(imp => {
-        const tr = document.createElement('tr');
-        const badgeClass = (imp.type || 'general').toLowerCase();
-        
-        tr.innerHTML = `
-            <td><strong style="color: var(--text-secondary);">${imp.id || 'N/A'}</strong></td>
-            <td><span class="imp-badge ${badgeClass}">${imp.type || 'General'}</span></td>
-            <td><strong>${imp.title || 'Enhancement Opportunity'}</strong></td>
-            <td style="color: var(--text-secondary); font-size: 0.9rem;">${imp.description || ''}</td>
-        `;
-        tbody.appendChild(tr);
-    });
+        if (improvements.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">✅ No improvement gaps identified. Your README is in top shape!</td></tr>`;
+        } else {
+            improvements.forEach(imp => {
+                const tr = document.createElement('tr');
+                const badgeClass = (imp.type || 'general').toLowerCase().replace(/\s+/g, '-');
+                tr.innerHTML = `
+                    <td><strong style="color: var(--text-secondary);">${escapeHtml(String(imp.id || 'N/A'))}</strong></td>
+                    <td><span class="imp-badge ${badgeClass}">${escapeHtml(imp.type || 'General')}</span></td>
+                    <td><strong>${escapeHtml(imp.title || 'Enhancement Opportunity')}</strong></td>
+                    <td style="color: var(--text-secondary); font-size: 0.9rem;">${escapeHtml(imp.description || '')}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    }
 
     // 5. Trigger documentation drift check
     checkDocumentationDrift();
@@ -407,17 +456,20 @@ async function checkDocumentationDrift() {
     }
 }
 
-// STYLE SELECTION STATE
-let selectedStyle = 'visual_rich';
-
-function selectStyle(styleName) {
-    selectedStyle = styleName;
-    document.querySelectorAll('.style-card').forEach(card => {
-        card.classList.remove('active');
-        if (card.getAttribute('data-style') === styleName) {
-            card.classList.add('active');
-        }
-    });
+// Maps project intent → default visual asset pack (mirrors INTENT_VISUAL_STRATEGY in contracts.py)
+function _intentToVisualPack(intent) {
+    const map = {
+        application: 'ui_app',
+        demo:        'ui_app',
+        api:         'api',
+        library:     'package',
+        cli:         'package',
+        learning:    'minimal',
+        poc:         'minimal',
+        minimal:     'minimal',
+        unknown:     'minimal',
+    };
+    return map[intent] || 'ui_app';
 }
 
 // DESIGN BRIEF INTERACTIVE REVIEW
@@ -429,14 +481,19 @@ function loadDesignBrief() {
 
     // Set Classification Metadata
     const classification = analysisContext.classification || {};
-    document.getElementById('brief-primary-intent').textContent = classification.primary_intent || analysisContext.project_type || 'Unknown';
-    document.getElementById('brief-delivery-surfaces').textContent = (classification.delivery_surfaces || []).join(', ') || 'None';
-    document.getElementById('brief-confidence').textContent = (classification.confidence !== undefined) ? classification.confidence : '1.0';
+    const confidence = classification.confidence !== undefined ? classification.confidence : 1.0;
+
+    document.getElementById('brief-primary-intent').textContent =
+        classification.primary_intent || analysisContext.project_type || 'Unknown';
+    document.getElementById('brief-delivery-surfaces').textContent =
+        (classification.delivery_surfaces || []).join(', ') || 'None';
+    document.getElementById('brief-confidence').textContent =
+        `${Math.round(confidence * 100)}%`;
 
     // Populate Evidence list
     const evidenceContainer = document.getElementById('brief-evidence-container');
     evidenceContainer.innerHTML = '';
-    
+
     const evidence = classification.evidence || [];
     if (evidence.length === 0) {
         evidenceContainer.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.9rem;">No deterministic signals detected in repository tree.</div>';
@@ -460,8 +517,8 @@ function loadDesignBrief() {
     const sectionDescriptions = {
         'title': 'Project Title Block & Shields Badges',
         'overview': 'One-liner Tagline & Core Description',
-        'problem': 'The Pain Point (Omitted for learn/minimal)',
-        'solution': 'The Solution Narrative (Omitted for learn/minimal)',
+        'problem': 'The Pain Point (omitted for learning/minimal/unknown)',
+        'solution': 'The Solution Narrative (omitted for learning/minimal/unknown)',
         'key_concepts': 'Key Concepts & Terminology Table',
         'architecture': 'Architecture Diagram & Subgraphs',
         'features': 'Key Features & Capabilities Grid',
@@ -482,26 +539,19 @@ function loadDesignBrief() {
         label.className = 'checkbox-label';
         label.innerHTML = `
             <input type="checkbox" name="brief-section" value="${sec}" ${checked}>
-            <span><strong>${sec}</strong> - ${desc}</span>
+            <span><strong>${escapeHtml(sec)}</strong> — ${escapeHtml(desc)}</span>
         `;
         sectionsContainer.appendChild(label);
     });
 
-    // Auto-select visual pack matching primary intent
+    // Auto-select visual pack from classification suggested strategy
     const visualPackSelect = document.getElementById('brief-visual-pack');
     if (visualPackSelect) {
-        const intent = classification.primary_intent || 'minimal';
-        if (intent === 'application') {
-            visualPackSelect.value = 'ui_app';
-        } else if (intent === 'api') {
-            visualPackSelect.value = 'api';
-        } else if (intent === 'library') {
-            visualPackSelect.value = 'package';
-        } else if (intent === 'cli') {
-            visualPackSelect.value = 'package';
-        } else {
-            visualPackSelect.value = 'minimal';
-        }
+        const suggestedStrategy =
+            classification.suggested_visual_strategy ||
+            docPlan.suggested_visual_strategy ||
+            _intentToVisualPack(classification.primary_intent || 'application');
+        visualPackSelect.value = suggestedStrategy;
     }
 
     goToStep(5);
@@ -520,10 +570,15 @@ function triggerDraftGeneration() {
     const visualPack = document.getElementById('brief-visual-pack').value;
     const noExternalAssets = document.getElementById('brief-no-external-assets').checked;
 
+    // Read style from the Brief panel selector (Step 5)
+    const styleSelect = document.getElementById('brief-style-select');
+    const chosenStyle = styleSelect ? styleSelect.value : 'visual_rich';
+
     const briefOptions = {
         sections: selectedSections,
         visual_pack: visualPack,
-        no_external_assets: noExternalAssets
+        no_external_assets: noExternalAssets,
+        style: chosenStyle
     };
 
     startGeneration(true, '', briefOptions);
@@ -536,6 +591,11 @@ async function startGeneration(isInstant, compiledAnswers = '', briefOptions = n
     const loaderStatus = document.getElementById(isBrief ? 'brief-loader-status' : 'dashboard-loader-status');
     const actionsBlock = document.getElementById(isBrief ? 'brief-actions' : 'dashboard-actions');
 
+    // Read style: prefer briefOptions.style, then brief-style-select, then fallback
+    const styleToUse = (briefOptions && briefOptions.style)
+        ? briefOptions.style
+        : (document.getElementById('brief-style-select')?.value || 'visual_rich');
+
     // Display loader overlay
     if (loader) loader.style.display = 'flex';
     if (actionsBlock) actionsBlock.style.display = 'none';
@@ -544,12 +604,12 @@ async function startGeneration(isInstant, compiledAnswers = '', briefOptions = n
     const statusMessages = [
         "Writer Agent preparing README structure...",
         "Writer Agent drafting narrative sections...",
-        "Writer Agent generating code examples..."
+        "Writer Agent generating code examples and diagrams..."
     ];
     let msgIdx = 0;
     const statusInterval = setInterval(() => {
-        if (msgIdx < statusMessages.length) {
-            if (loaderStatus) loaderStatus.textContent = statusMessages[msgIdx++];
+        if (msgIdx < statusMessages.length && loaderStatus) {
+            loaderStatus.textContent = statusMessages[msgIdx++];
         }
     }, 4000);
 
@@ -563,10 +623,12 @@ async function startGeneration(isInstant, compiledAnswers = '', briefOptions = n
                 provider: providerConfig.provider,
                 api_key: providerConfig.api_key,
                 model: providerConfig.model,
-                base_url: providerConfig.provider === 'ollama' ? providerConfig.ollama_host : providerConfig.opencode_host,
+                base_url: providerConfig.provider === 'ollama'
+                    ? providerConfig.ollama_host
+                    : providerConfig.opencode_host,
                 custom_answers: isInstant ? '' : compiledAnswers,
-                style: selectedStyle,
-                lang: document.getElementById('lang-select').value,
+                style: styleToUse,
+                lang: document.getElementById('lang-select')?.value || 'en',
                 brief: briefOptions
             })
         });
@@ -577,12 +639,15 @@ async function startGeneration(isInstant, compiledAnswers = '', briefOptions = n
         if (actionsBlock) actionsBlock.style.display = 'flex';
 
         if (!data.success) {
-            showNotification(`Generation failed: ${data.error}`, 'error');
+            showNotification(_getErrorMessage(data), 'error');
             return;
         }
 
+        // Store draft id for export
+        if (data.draft_id) currentDraftId = data.draft_id;
+
         // Render preview content
-        displayGeneratedOutputs(data.readme);
+        await displayGeneratedOutputs(data.readme);
         goToStep(6);
 
     } catch (err) {
@@ -595,77 +660,99 @@ async function startGeneration(isInstant, compiledAnswers = '', briefOptions = n
 
 
 
-// Helper to escape special characters for Mermaid nodes safely
+// ── Mermaid text sanitizer — fix node labels without altering shape semantics ──
 function sanitizeMermaidText(text) {
     if (!text) return '';
+
     return text.split('\n').map(line => {
         let sanitized = line;
-        // ID[Label] -> ID["Label"]
-        sanitized = sanitized.replace(/([a-zA-Z0-9_-]+)\[([^"\]\n\r]+)\]/g, (match, id, label) => {
-            return `${id}["${label.trim()}"]`;
-        });
-        // ID(Label) -> ID("Label")
-        sanitized = sanitized.replace(/([a-zA-Z0-9_-]+)\(([^"\)\n\r]+)\)/g, (match, id, label) => {
-            return `${id}("${label.trim()}")`;
-        });
-        // ID{Label} -> ID{"Label"}
-        sanitized = sanitized.replace(/([a-zA-Z0-9_-]+)\{([^"\}\n\r]+)\}/g, (match, id, label) => {
-            return `${id}{"${label.trim()}"}`;
-        });
+
+        // 1. Quote unquoted multi-word square-bracket labels: A[My Label] → A["My Label"]
+        //    But leave already-quoted labels alone: A["My Label"] stays
+        sanitized = sanitized.replace(
+            /([A-Za-z0-9_-]+)\[(?!")([^\]"]+)(?<!")\]/g,
+            (match, id, label) => `${id}["${label.trim()}"]`
+        );
+
+        // 2. Quote unquoted diamond labels (decision nodes): C{Yes or No} → C{"Yes or No"}
+        sanitized = sanitized.replace(
+            /([A-Za-z0-9_-]+)\{(?!")([^}"]+)(?<!")\}/g,
+            (match, id, label) => `${id}{"${label.trim()}"}`
+        );
+
+        // 3. Remove parentheses inside quoted labels that would break Mermaid
+        //    e.g. A["foo (bar)"] → A["foo bar"]
+        sanitized = sanitized.replace(
+            /(\["[^"]*)\(([^)]*)\)([^"]*"\])/g,
+            (match, before, content, after) => `${before}${content}${after}`
+        );
+
+        // 4. Sanitize edge labels with special chars: -->|label (with parens)| → -->|label|
+        sanitized = sanitized.replace(/\|([^|]*)\(([^)]*)\)([^|]*)\|/g, '|$1$2$3|');
+
         return sanitized;
     }).join('\n');
 }
 
-// DISPLAY PREVIEWS IN STEP 5
-function displayGeneratedOutputs(readme) {
+// ── Safe Mermaid renderer — renders one div, falls back to code block on error ──
+async function renderMermaidDiv(div) {
+    const id = 'mermaid-' + Math.random().toString(36).substr(2, 9);
+    const rawText = div.getAttribute('data-raw') || div.textContent.trim();
+    const cleanText = sanitizeMermaidText(rawText);
+
+    try {
+        const { svg } = await mermaid.render(id, cleanText);
+        div.innerHTML = svg;
+        div.classList.add('mermaid-rendered');
+    } catch (err) {
+        console.warn('[Mermaid] Render failed, showing code block:', err.message || err);
+        div.innerHTML = `<pre class="mermaid-fallback"><code>${escapeHtml(rawText)}</code></pre>`;
+        div.classList.add('mermaid-error');
+    }
+}
+
+
+// DISPLAY PREVIEWS IN STEP 6
+async function displayGeneratedOutputs(readme) {
     try {
         // 1. Raw code editor
         const textarea = document.getElementById('raw-readme-text');
         textarea.value = readme;
 
-        // 2. Render markdown visual preview (Marked + post process Mermaid)
+        // 2. Render markdown visual preview (Marked + async Mermaid)
         const readmeBody = document.getElementById('rendered-readme-body');
         if (!readmeBody) {
             console.error("Element #rendered-readme-body not found");
             return;
         }
 
-        let html = marked.parse(readme);
+        // Parse markdown to HTML
+        const html = marked.parse(readme);
 
-        // Convert code blocks with language-mermaid into divs to render
+        // Build a DOM from the parsed HTML
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
-        const mermaidCodes = doc.querySelectorAll('pre code.language-mermaid');
 
-        mermaidCodes.forEach(codeNode => {
-            const preNode = codeNode.parentElement;
+        // Convert ```mermaid code blocks into .mermaid divs before inserting
+        doc.querySelectorAll('pre code.language-mermaid, pre code').forEach(codeNode => {
+            const text = codeNode.textContent.trim();
+            // Detect mermaid by class name or by content starting with known keywords
+            const isMermaid = codeNode.className.includes('language-mermaid') ||
+                /^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|gantt|pie|erDiagram)\b/.test(text);
+            if (!isMermaid) return;
+
             const divNode = document.createElement('div');
             divNode.className = 'mermaid';
-            divNode.textContent = sanitizeMermaidText(codeNode.textContent.trim());
-            preNode.replaceWith(divNode);
+            divNode.setAttribute('data-raw', text); // preserve original text for renderer
+            divNode.textContent = text;
+            codeNode.parentElement.replaceWith(divNode);
         });
 
         readmeBody.innerHTML = doc.body.innerHTML;
 
-        // Render mermaid diagrams safely
-        const mermaidDivs = readmeBody.querySelectorAll('.mermaid');
-        if (mermaidDivs.length > 0) {
-            mermaidDivs.forEach(div => {
-                try {
-                    const id = 'mermaid-' + Math.random().toString(36).substr(2, 9);
-                    const cleanText = sanitizeMermaidText(div.textContent.trim());
-                    mermaid.render(id, cleanText).then(({ svg }) => {
-                        div.innerHTML = svg;
-                    }).catch(err => {
-                        console.warn("Mermaid render failed, showing code:", err);
-                        div.innerHTML = '<pre>' + div.textContent.trim() + '</pre>';
-                    });
-                } catch (err) {
-                    console.warn("Mermaid error:", err);
-                    div.innerHTML = '<pre>' + div.textContent.trim() + '</pre>';
-                }
-            });
-        }
+        // Async render all mermaid divs
+        const mermaidDivs = Array.from(readmeBody.querySelectorAll('.mermaid'));
+        await Promise.allSettled(mermaidDivs.map(div => renderMermaidDiv(div)));
 
         // 3. Compute and render diff
         computeAndRenderDiff(readme);
@@ -765,32 +852,22 @@ function computeAndRenderDiff(newReadme) {
         });
     }
 
-    // Render any mermaid blocks in both columns
+    // Render any mermaid blocks in both columns (async)
     if (typeof mermaid !== 'undefined') {
         [bodyOld, bodyNew].forEach(container => {
             container.querySelectorAll('pre code').forEach(block => {
-                const lang = block.className || '';
-                if (lang.includes('mermaid') || block.textContent.trim().startsWith('flowchart') || block.textContent.trim().startsWith('graph')) {
-                    const div = document.createElement('div');
-                    div.className = 'mermaid';
-                    div.textContent = sanitizeMermaidText(block.textContent.trim());
-                    block.parentElement.replaceWith(div);
-                }
+                const text = block.textContent.trim();
+                const isMermaid = (block.className || '').includes('mermaid') ||
+                    /^(flowchart|graph|sequenceDiagram|classDiagram)\b/.test(text);
+                if (!isMermaid) return;
+                const div = document.createElement('div');
+                div.className = 'mermaid';
+                div.setAttribute('data-raw', text);
+                div.textContent = text;
+                block.parentElement.replaceWith(div);
             });
-            try {
-                const divs = container.querySelectorAll('.mermaid');
-                if (divs.length > 0) {
-                    divs.forEach(div => {
-                        const id = 'mermaid-diff-' + Math.random().toString(36).substr(2, 9);
-                        const cleanText = sanitizeMermaidText(div.textContent.trim());
-                        mermaid.render(id, cleanText).then(({ svg }) => {
-                            div.innerHTML = svg;
-                        }).catch(() => {
-                            div.innerHTML = '<pre>' + div.textContent.trim() + '</pre>';
-                        });
-                    });
-                }
-            } catch (e) {}
+            Array.from(container.querySelectorAll('.mermaid'))
+                .forEach(div => renderMermaidDiv(div));
         });
     }
 
@@ -894,23 +971,21 @@ function copyMarkdown() {
 function resetApp() {
     scanContext = null;
     analysisContext = null;
-    selectedStyle = 'visual_rich';
+    currentDraftId = '.readme_forge_draft';
     document.getElementById('repo-path-input').value = '.';
 
-    document.querySelectorAll('.style-card').forEach(card => {
-        card.classList.remove('active');
-        if (card.getAttribute('data-style') === 'visual_rich') {
-            card.classList.add('active');
-        }
-    });
+    // Reset style selector to default
+    const styleEl = document.getElementById('brief-style-select');
+    if (styleEl) styleEl.value = 'visual_rich';
 
     goToStep(1);
 }
 
 // On page load
-window.onload = function() {
+window.addEventListener('DOMContentLoaded', () => {
     handleProviderChange();
-};
+    _restoreProviderPrefs();
+});
 
 // CUSTOM MINIMALIST TOAST NOTIFICATION
 function showNotification(message, type = 'info') {

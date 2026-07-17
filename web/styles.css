@@ -504,13 +504,19 @@ h2 {
     display: flex;
     align-items: center;
     justify-content: center;
+    /* Conic gradient gauge — driven by --score-deg CSS variable set from JS */
+    background: conic-gradient(
+        var(--accent-primary) calc(var(--score-deg, 0) * 1deg),
+        var(--bg-tertiary) 0
+    );
+    transition: background 0.6s ease;
 }
 
 .score-circle::before {
     content: '';
     position: absolute;
-    width: 90px;
-    height: 90px;
+    width: 86px;
+    height: 86px;
     border-radius: 50%;
     background: var(--card-bg);
 }
@@ -1659,3 +1665,187 @@ h2 {
 }
 
 
+
+/* ─── Phase 1 UI Improvements ─────────────────────────────────────────────── */
+
+/* Mermaid diagram container */
+.mermaid {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow-x: auto;
+    padding: 1rem 0;
+}
+
+.mermaid svg {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Mermaid render error fallback */
+.mermaid-fallback {
+    background: var(--bg-tertiary);
+    border: 1px dashed var(--accent-warning);
+    border-radius: 6px;
+    padding: 0.875rem;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.mermaid-error {
+    border: 1px dashed var(--accent-warning);
+    border-radius: 8px;
+    padding: 0.5rem;
+}
+
+/* Score circle — color shifts based on score status class */
+.score-gauge-box.score-excellent .score-circle {
+    background: conic-gradient(
+        var(--accent-success) calc(var(--score-deg, 0) * 1deg),
+        var(--bg-tertiary) 0
+    );
+}
+
+.score-gauge-box.score-good .score-circle {
+    background: conic-gradient(
+        var(--accent-primary) calc(var(--score-deg, 0) * 1deg),
+        var(--bg-tertiary) 0
+    );
+}
+
+.score-gauge-box.score-fair .score-circle {
+    background: conic-gradient(
+        var(--accent-warning) calc(var(--score-deg, 0) * 1deg),
+        var(--bg-tertiary) 0
+    );
+}
+
+.score-gauge-box.score-poor .score-circle {
+    background: conic-gradient(
+        var(--accent-danger) calc(var(--score-deg, 0) * 1deg),
+        var(--bg-tertiary) 0
+    );
+}
+
+/* Score value animation */
+.score-value {
+    position: relative;
+    z-index: 1;
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    letter-spacing: -0.03em;
+    transition: color 0.4s ease;
+}
+
+/* Confidence warning badge on Dashboard */
+.confidence-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: #fef3c7;
+    color: #b45309;
+    border: 1px solid #fcd34d;
+    border-radius: 20px;
+    padding: 0.3rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-top: 0.5rem;
+}
+
+.confidence-badge.high {
+    background: #dcfce7;
+    color: #15803d;
+    border-color: #86efac;
+}
+
+/* Style selector in Brief step */
+#brief-style-select {
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+}
+
+#brief-style-select:focus {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px rgba(3, 105, 161, 0.1);
+    outline: none;
+}
+
+/* Animated score counter */
+@keyframes countUp {
+    from { opacity: 0; transform: scale(0.8); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+.score-value.animate {
+    animation: countUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Mermaid rendered SVG wrapper */
+.mermaid-rendered svg {
+    border-radius: 8px;
+}
+
+/* Markdown img tags — prevent overflow */
+.markdown-view img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+}
+
+/* Better blockquote style */
+.markdown-view blockquote {
+    border-left: 3px solid var(--accent-primary);
+    padding: 0.5rem 1rem;
+    margin: 0.875rem 0;
+    color: var(--text-secondary);
+    background: var(--bg-tertiary);
+    border-radius: 0 6px 6px 0;
+}
+
+/* Inline badge tags in markdown */
+.markdown-view img[src*="shields.io"],
+.markdown-view img[src*="badge"] {
+    display: inline;
+    margin: 0 0.2rem;
+    border-radius: 4px;
+}
+
+/* Responsive wizard container */
+@media (max-width: 900px) {
+    .app-container {
+        padding: 0.75rem 1rem;
+    }
+    .wizard-container {
+        padding: 1.5rem 1.25rem;
+    }
+    .brief-grid {
+        grid-template-columns: 1fr;
+    }
+    .score-card-row {
+        grid-template-columns: 1fr;
+    }
+    .features-grid {
+        grid-template-columns: 1fr;
+    }
+    .style-cards-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Step indicator responsive */
+@media (max-width: 700px) {
+    .step-label {
+        display: none;
+    }
+    .step-line {
+        width: 16px;
+    }
+    .app-header {
+        flex-direction: column;
+        gap: 0.75rem;
+        align-items: flex-start;
+    }
+}

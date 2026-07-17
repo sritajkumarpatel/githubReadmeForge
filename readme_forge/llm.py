@@ -217,172 +217,180 @@ class LLMClient:
         return "\n".join(text_parts)
 
     def _mock_generate(self, system_prompt, user_prompt, response_format_json):
-        """Simulates LLM responses based on keywords in the prompt for demo/testing purposes."""
+        """Simulates LLM responses based on codebase signals in the prompt.
+
+        The mock now inspects the user_prompt for project signals so that
+        different repository types produce visibly different outputs — making
+        development and testing of type-specific README behaviour practical.
+        """
         import json
-        if "improvement points" in user_prompt.lower() or "list_improvements" in system_prompt.lower() or response_format_json:
+
+        if response_format_json:
+            # ── Infer mock project type from prompt content ────────────────
+            prompt_lower = user_prompt.lower()
+
+            if any(t in prompt_lower for t in ("tutorial", "course", "exercise", "learn")):
+                mock_type = "learning"
+                mock_persona = "A learning repository with step-by-step coding exercises."
+                mock_problem = "Developers need structured practice to cement new skills."
+                mock_solution = "This repo provides guided exercises with increasing complexity."
+            elif any(t in prompt_lower for t in ("demo", "showcase", "showroom", "sample-app")):
+                mock_type = "demo"
+                mock_persona = "A showcase demonstrating the core capabilities of the system."
+                mock_problem = "Stakeholders need a quick way to see the tool in action."
+                mock_solution = "This demo runs in one command and shows the full workflow end-to-end."
+            elif any(t in prompt_lower for t in ("proof of concept", "poc", "experiment", "prototype")):
+                mock_type = "poc"
+                mock_persona = "An experimental proof-of-concept exploring a novel approach."
+                mock_problem = "The feasibility of this approach was unproven."
+                mock_solution = "This PoC validates the core idea with a minimal working implementation."
+            elif any(t in prompt_lower for t in ("fastapi", "flask", "@app.route", "express", "router")):
+                mock_type = "api"
+                mock_persona = "A REST API service exposing structured endpoints."
+                mock_problem = "Clients needed a reliable interface to consume backend data."
+                mock_solution = "This API provides typed endpoints with clear request/response contracts."
+            elif any(t in prompt_lower for t in ("argparse", "click", "typer", "sys.argv", "commander")):
+                mock_type = "cli"
+                mock_persona = "A command-line tool for developer productivity."
+                mock_problem = "Repetitive terminal tasks required manual intervention each time."
+                mock_solution = "This CLI automates those tasks behind simple, memorable commands."
+            elif any(t in prompt_lower for t in ("pypi", "npm publish", "cargo publish", "setup.py", "pyproject")):
+                mock_type = "library"
+                mock_persona = "A reusable library that can be imported into other projects."
+                mock_problem = "Developers needed to solve this problem repeatedly across projects."
+                mock_solution = "This library encapsulates the solution as a clean, importable package."
+            else:
+                mock_type = "application"
+                mock_persona = "An agentic multi-agent CLI and web tool for README generation."
+                mock_problem = "Writing READMEs manually is repetitive and results in generic docs."
+                mock_solution = "It automates analysis and formatting through a multi-agent framework."
+
             mock_analysis = {
-                "project_name": "githubReadmeForge",
-                "project_type": "cli",
-                "project_type_reason": "It runs in the terminal as a commands developer tool.",
+                "project_name": "MockProject",
+                "project_type": mock_type,
+                "project_type_reason": f"Detected signals in the codebase match a '{mock_type}' project.",
                 "project_maturity": "development",
-                "tech_stack": ["Python", "Rich CLI", "Git API", "LLMs"],
-                "project_persona": "An agentic terminal developer utility",
-                "problem_statement": "Writing READMEs manually is repetitive and results in generic docs.",
-                "solution_narrative": "It automates analysis and formatting through a multi-agent framework.",
+                "classification": {
+                    "primary_intent": mock_type,
+                    "delivery_surfaces": ["package", "cli"] if mock_type == "cli" else ["ui", "api"] if mock_type == "api" else ["package"],
+                    "confidence": 0.75,
+                },
+                "tech_stack": ["Python", "Rich", "Pytest"],
+                "project_persona": mock_persona,
+                "problem_statement": mock_problem,
+                "solution_narrative": mock_solution,
                 "key_features": [
-                    {"name": "Multi-Agent Execution", "description": "Coordinates Reader, Analyzer, and Writer agents to generate docs.", "category": "Core"},
-                    {"name": "Pluggable LLMs", "description": "Support for Gemini, OpenAI, Claude, and local Ollama.", "category": "Integration"},
-                    {"name": "Mermaid Diagram Gen", "description": "Generates correct Mermaid.js flowcharts representing codebase flow.", "category": "Visuals"}
+                    {"name": "Core Feature A", "description": "The primary capability of this project.", "category": "Core"},
+                    {"name": "Integration Layer", "description": "Connects to external services via a clean abstraction.", "category": "Integration"},
                 ],
-                "api_endpoints": [],
-                "config_variables": [],
-                "cli_commands": [],
+                "api_endpoints": [
+                    {"method": "POST", "path": "/api/analyze", "description": "Analyze a repository and return structured results."},
+                    {"method": "POST", "path": "/api/generate", "description": "Generate a README from analysis context."},
+                ] if mock_type in ("api", "application") else [],
+                "config_variables": [
+                    {"name": "API_KEY", "description": "Authentication key for the LLM provider.", "required": True, "default": ""},
+                    {"name": "MODEL_NAME", "description": "Override the default model selection.", "required": False, "default": "auto"},
+                ],
+                "cli_commands": [
+                    {"command": "readme-forge --path .", "description": "Generate README for the current directory."},
+                    {"command": "readme-forge --path . --instant", "description": "Skip interactive mode and generate immediately."},
+                ] if mock_type in ("cli", "application") else [],
                 "data_models": [
-                    {"name": "ScanResults", "fields": ["tree", "configs", "code_context", "test_signals"], "description": "Output of ReaderAgent codebase scan"}
+                    {"name": "ScanResults", "fields": ["tree", "configs", "code_context", "test_signals"], "description": "Output of the ReaderAgent codebase scan."},
                 ],
                 "installation_commands": [
-                    {"command": "pip install -r requirements.txt", "description": "Install dependencies"},
-                    {"command": "python setup.py install", "description": "Install package"}
+                    {"step": "1", "command": "git clone https://github.com/user/project.git", "description": "Clone the repository."},
+                    {"step": "2", "command": "cd project && pip install -r requirements.txt", "description": "Install dependencies."},
+                    {"step": "3", "command": "cp .env.example .env && nano .env", "description": "Configure environment variables."},
                 ],
-                "external_services": [
-                    "Gemini API",
-                    "Claude API"
-                ],
+                "external_services": ["Gemini API", "OpenAI API"],
                 "test_coverage": {
                     "has_tests": True,
                     "framework": "pytest",
-                    "test_count": 11,
-                    "description": "Basic validation tests for agents"
+                    "test_count": 22,
+                    "description": "Unit tests covering agent contracts, analyzer fallback, drift detection, and writer coercion.",
                 },
                 "architecture_layers": [
-                    {"layer": "CLI Entrypoint", "responsibility": "Argument parsing and configuration"},
-                    {"layer": "Agent Orchestrator", "responsibility": "Orchestrates scanning, analysis, and generation"},
-                    {"layer": "Reader Agent", "responsibility": "Local and remote repository scanning"}
+                    {"layer": "CLI / Web Entrypoint", "files": ["main.py", "server.py"], "responsibility": "Argument parsing and HTTP request handling."},
+                    {"layer": "Agent Orchestrator", "files": ["readme_forge/agents/orchestrator.py"], "responsibility": "Coordinates all agents in sequence."},
+                    {"layer": "Reader Agent", "files": ["readme_forge/agents/reader.py"], "responsibility": "Scans local and remote codebases."},
+                    {"layer": "Analyzer Agent", "files": ["readme_forge/agents/analyzer.py"], "responsibility": "Extracts structured facts via LLM."},
+                    {"layer": "Writer Agent", "files": ["readme_forge/agents/writer.py"], "responsibility": "Generates polished README markdown."},
                 ],
                 "improvements": [
-                    {
-                        "id": "1",
-                        "title": "Missing visual architectural layout",
-                        "description": "The current codebase has no visual representation showing how the CLI, agents, and LLMs interact.",
-                        "type": "Structure"
-                    },
-                    {
-                        "id": "2",
-                        "title": "Inconsistent configuration documentation",
-                        "description": "It is not clear how to set up LLM API keys or local Ollama endpoints.",
-                        "type": "Configuration"
-                    },
-                    {
-                        "id": "3",
-                        "title": "Lack of quick start/usage examples",
-                        "description": "No concrete example commands or visual showcase showing how simple it is to generate markdown.",
-                        "type": "Examples"
-                    }
+                    {"id": "1", "title": "Add architecture diagram", "description": "A visual flow would clarify component relationships.", "type": "Visual"},
+                    {"id": "2", "title": "Document configuration variables", "description": "Environment variables are undocumented in the README.", "type": "Configuration"},
                 ],
                 "connections": [
-                    {"from": "CLI Entrypoint", "to": "Orchestrator"},
-                    {"from": "Orchestrator", "to": "Reader Agent"},
-                    {"from": "Orchestrator", "to": "Analyzer Agent"},
-                    {"from": "Orchestrator", "to": "Writer Agent"},
-                    {"from": "Analyzer Agent", "to": "LLM Wrapper"},
-                    {"from": "Writer Agent", "to": "LLM Wrapper"}
-                ]
+                    {"from": "CLI Entrypoint", "to": "Orchestrator", "relationship": "invokes", "layer": "orchestration"},
+                    {"from": "Orchestrator", "to": "Reader Agent", "relationship": "scans codebase", "layer": "orchestration"},
+                    {"from": "Reader Agent", "to": "Analyzer Agent", "relationship": "provides scan results", "layer": "data"},
+                    {"from": "Analyzer Agent", "to": "LLM Client", "relationship": "requests analysis", "layer": "integration"},
+                    {"from": "Analyzer Agent", "to": "Writer Agent", "relationship": "passes analysis", "layer": "orchestration"},
+                    {"from": "Writer Agent", "to": "README.md", "relationship": "writes output", "layer": "data"},
+                ],
             }
             return json.dumps(mock_analysis, indent=2)
 
+        # ── README generation mock ─────────────────────────────────────────
         if "generate" in user_prompt.lower() or "readme" in user_prompt.lower():
-            return """# 🛠️ githubReadmeForge
+            return """# MockProject
 
-[![GitHub License](https://img.shields.io/github/license/user/repo?style=flat-square)](LICENSE)
-[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square)](https://www.python.org/)
-[![Architecture](https://img.shields.io/badge/architecture-multi--agentic-purple?style=flat-square)](#architecture)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-A terminal-based CLI tool that uses a multi-agent orchestration framework to analyze codebases and forge consistent, visually structured, and example-rich `README.md` files.
+> A demonstration README generated by the mock LLM provider.
 
----
+## The Problem
 
-## 🎯 Features
+Manual documentation is time-consuming and often falls behind the actual codebase.
 
-- **Multi-Agent Orchestration**: Separate specialized agents for reading files, analyzing architecture, and compiling markdown.
-- **Pluggable LLM Providers**: Support for Gemini, OpenAI, Claude, and local Ollama models.
-- **Interactive & Instant Modes**: Get a quick automated draft or review improvement points step-by-step.
-- **Rich Visuals**: Automatic integration of Mermaid.js architecture diagrams and repository layout visualizers.
+## The Solution
 
----
+This project automates documentation by analysing the repository structure and generating
+a tailored README using a multi-agent pipeline.
 
-## 🏗️ Architecture
+## How It Works
 
 ```mermaid
 flowchart TD
-    User([User CLI Input]) --> CLI[CLI Entrypoint: cli.py]
-    CLI --> LLM[LLM Client Wrapper: llm.py]
-    CLI --> Orch[Agent Orchestrator: orchestrator.py]
-    
-    Orch --> Reader[Reader Agent: reader.py]
-    Orch --> Analyzer[Analyzer Agent: analyzer.py]
-    Orch --> Writer[Writer Agent: writer.py]
+    A["CLI / Web"] --> B["Orchestrator"]
+    B --> C["Reader Agent"]
+    C --> D["Analyzer Agent"]
+    D --> E["Writer Agent"]
+    E --> F["README.md"]
 ```
 
----
+1. **Step 1 — Ingest**: The CLI or web server receives a repository path or URL.
+2. **Step 2 — Scan**: `ReaderAgent` walks the directory tree and extracts source files.
+3. **Step 3 — Analyze**: `AnalyzerAgent` sends context to the LLM and receives structured JSON.
+4. **Step 4 — Write**: `WriterAgent` builds the final README from the analysis contract.
 
-## 🚀 Getting Started
+## Installation
 
-### Installation
-
-```bash
-git clone https://github.com/user/githubReadmeForge.git
-cd githubReadmeForge
+```shell
+git clone https://github.com/user/project.git
+cd project
 pip install -r requirements.txt
+cp .env.example .env
 ```
 
-### Usage
+## Quick Start
 
-Run the tool in interactive mode on your repository:
-```bash
-python main.py --path .
+```shell
+readme-forge --path .
 ```
 
-For instant mode without questions:
-```bash
-python main.py --path . --instant
-```
+## Configuration
 
----
+| Variable | Description | Required | Default |
+|---|---|---|---|
+| `API_KEY` | LLM provider API key | Yes | — |
+| `MODEL_NAME` | Model override | No | auto |
 
-## ⚙️ Configuration
+## Contributing & License
 
-<details>
-<summary><b>API Credentials Setup</b></summary>
-
-Set up environment variables for your chosen LLM provider:
-
-```bash
-# For Gemini (Default)
-export GEMINI_API_KEY="your-gemini-key"
-
-# For OpenAI
-export OPENAI_API_KEY="your-openai-key"
-
-# For Anthropic Claude
-export ANTHROPIC_API_KEY="your-claude-key"
-
-# For local Ollama
-export README_FORGE_PROVIDER="ollama"
-export OLLAMA_HOST="http://localhost:11434"
-```
-</details>
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License — contributions welcome via pull request.
 """
 
         return "Mock Response: Operation completed successfully."
