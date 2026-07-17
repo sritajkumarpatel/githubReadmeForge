@@ -88,6 +88,12 @@ def select_component_flow(connections: Any, max_nodes: int = 5) -> list[dict[str
         path.append(edge)
         current = edge["to"]
         visited_nodes.add(current)
+
+    # Fallback: if resulting path has < 2 edges but original edges list has >= 2,
+    # show the first N edges as-is to present a more complete picture.
+    if len(path) < 2 and len(edges) >= 2:
+        return edges[:max_nodes - 1]
+
     return path
 
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.backends.legacy:build"
 
 [project]
 name = "githubReadmeForge"
-version = "0.1.0"
+version = "0.2.0"
 description = "Multi-agent CLI & Web tool that analyzes codebases and forges professional README.md files using AI."
 readme = "README.md"
 license = { text = "MIT" }

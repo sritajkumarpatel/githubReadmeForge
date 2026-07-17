@@ -33,14 +33,25 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         parsed_path = urllib.parse.urlparse(self.path)
         clean_path = parsed_path.path
 
+        if clean_path == "/api/health":
+            self._send_json({"status": "ok", "message": "githubReadmeForge Web Server is healthy."})
+            return
+
         if clean_path == "/" or clean_path == "/index.html":
             file_path = project_root / "web" / "index.html"
         elif clean_path.startswith("/assets/"):
-            # Check draft directory, then output directory, then web directory
-            draft_path = project_root / ".readme_forge_draft" / clean_path.lstrip("/")
+            # Check any draft directories, then output directory, then web directory
+            draft_file = None
+            import glob
+            for d_dir in sorted(glob.glob(str(project_root / ".readme_forge_draft_*"))):
+                cand = Path(d_dir) / clean_path.lstrip("/")
+                if cand.exists():
+                    draft_file = cand
+                    break
+            
             output_path = project_root / "readme_forge_output" / clean_path.lstrip("/")
-            if draft_path.exists():
-                file_path = draft_path
+            if draft_file:
+                file_path = draft_file
             elif output_path.exists():
                 file_path = output_path
             else:
@@ -54,10 +65,10 @@ class APIRequestHandler(BaseHTTPRequestHandler):
             resolved_path = file_path.resolve()
             web_dir_resolved = (project_root / "web").resolve()
             output_dir_resolved = (project_root / "readme_forge_output").resolve()
-            draft_dir_resolved = (project_root / ".readme_forge_draft").resolve()
+            is_valid_draft = str(resolved_path).startswith(str((project_root / ".readme_forge_draft_").resolve()))
             if (not str(resolved_path).startswith(str(web_dir_resolved)) and 
                 not str(resolved_path).startswith(str(output_dir_resolved)) and
-                not str(resolved_path).startswith(str(draft_dir_resolved))):
+                not is_valid_draft):
                 self.send_error(403, "Access Denied")
                 return
         except Exception:
@@ -116,12 +127,13 @@ class APIRequestHandler(BaseHTTPRequestHandler):
 
         provider = req_body.get("provider", "")
         api_key = req_body.get("api_key")
+        base_url = req_body.get("base_url")
 
-        if not api_key:
+        if not api_key and provider not in ("ollama", "opencode", "mock"):
             self._send_json({"success": False, "error": "API key is required"}, 400)
             return
 
-        llm_client = LLMClient(provider=provider, api_key=api_key)
+        llm_client = LLMClient(provider=provider, api_key=api_key, base_url=base_url)
         models = llm_client.get_available_models()
 
         if isinstance(models, dict) and "error" in models:
@@ -148,19 +160,6 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         if not target_path:
             self._send_json({"success": False, "error": "Repository path or URL is required."}, 400)
             return
-
-        # Setup custom environment variables temporarily if keys provided
-        old_keys = {}
-        if api_key:
-            env_map = {
-                "gemini": "GEMINI_API_KEY",
-                "openai": "OPENAI_API_KEY",
-                "claude": "ANTHROPIC_API_KEY"
-            }
-            env_var = env_map.get(provider.lower())
-            if env_var:
-                old_keys[env_var] = os.environ.get(env_var)
-                os.environ[env_var] = api_key
 
         reader = None
         try:
@@ -259,12 +258,6 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         finally:
             if reader:
                 reader.cleanup()
-            # Restore environment keys
-            for k, val in old_keys.items():
-                if val is None:
-                    os.environ.pop(k, None)
-                else:
-                    os.environ[k] = val
 
     def _handle_generate(self):
         try:
@@ -315,18 +308,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
                 }, 400)
                 return
 
-        # Setup environment variables temporarily if keys provided
-        old_keys = {}
-        if api_key:
-            env_map = {
-                "gemini": "GEMINI_API_KEY",
-                "openai": "OPENAI_API_KEY",
-                "claude": "ANTHROPIC_API_KEY"
-            }
-            env_var = env_map.get(provider.lower())
-            if env_var:
-                old_keys[env_var] = os.environ.get(env_var)
-                os.environ[env_var] = api_key
+
 
         try:
             llm_client = LLMClient(provider=provider, model=model, api_key=api_key, base_url=base_url)
@@ -334,10 +316,9 @@ class APIRequestHandler(BaseHTTPRequestHandler):
             
             # Determine output_dir (always save drafts into temporary draft folder)
             target_path = scan_results.get("path", ".")
-            draft_dir = Path("./.readme_forge_draft")
-            if draft_dir.exists():
-                import shutil
-                shutil.rmtree(draft_dir, ignore_errors=True)
+            import uuid
+            draft_id = f".readme_forge_draft_{uuid.uuid4().hex[:8]}"
+            draft_dir = Path(project_root / draft_id)
             draft_dir.mkdir(parents=True, exist_ok=True)
             output_dir = draft_dir
 
@@ -359,6 +340,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
                 "success": True,
                 "readme": readme_md,
                 "visual_assets": analysis.get("visual_assets", {}),
+                "draft_id": draft_id
             })
         except Exception as e:
             import traceback
@@ -393,12 +375,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
                     "hint": "An unexpected error occurred during README generation."
                 }, 500)
         finally:
-            # Restore environment keys
-            for k, val in old_keys.items():
-                if val is None:
-                    os.environ.pop(k, None)
-                else:
-                    os.environ[k] = val
+            pass
 
     def _send_json(self, data, status_code=200):
         self.send_response(status_code)
@@ -519,7 +496,8 @@ class APIRequestHandler(BaseHTTPRequestHandler):
             target_path = "."
         target_path = target_path.strip()
         target_dir = Path(target_path).resolve()
-        draft_dir = Path("./.readme_forge_draft").resolve()
+        draft_id = req_body.get("draft_id", ".readme_forge_draft")
+        draft_dir = Path(project_root / draft_id).resolve()
 
         if not draft_dir.exists() or not (draft_dir / "README.md").exists():
             self._send_json({"success": False, "error": "No draft content found to export. Generate a draft first."}, 400)
@@ -586,6 +564,12 @@ def run_server(port=8080):
     # Ensure web folder exists
     Path(project_root / "web").mkdir(exist_ok=True)
     
+    # Startup cleanup of stale temp clones
+    import glob
+    import shutil
+    for stale in glob.glob("/tmp/readme_forge_clone_*"):
+        shutil.rmtree(stale, ignore_errors=True)
+
     server_address = ('', port)
     httpd = HTTPServer(server_address, APIRequestHandler)
     print(f"==================================================")

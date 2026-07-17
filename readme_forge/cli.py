@@ -59,7 +59,13 @@ Examples:
     parser.add_argument(
         "--lang", "-l",
         default="en",
-        help="Target language code for the generated README (e.g. 'zh-CN', 'es'). (default: en)"
+        help="Language for generated README (e.g. 'en', 'zh-CN', 'es'). (default: en)"
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version="0.2.0",
+        help="Show program version and exit."
     )
 
     return parser.parse_args()

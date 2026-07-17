@@ -54,7 +54,7 @@ Thumbs.db
 # ─── Generated Output (runtime artifacts, never commit) ───────────────────────
 readme_forge_output/*
 !readme_forge_output/.gitkeep
-.readme_forge_draft/
+.readme_forge_draft*
 assets/*
 !assets/.gitkeep
 showroom.html

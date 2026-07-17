@@ -156,12 +156,17 @@ async function fetchModels() {
     const modelSelect = document.getElementById('model-select');
     const modelLoading = document.getElementById('model-loading');
 
-    if (provider === 'ollama' || provider === 'opencode') {
+    // Skip API key requirement for ollama, opencode and mock
+    if (!apiKey && provider !== 'ollama' && provider !== 'opencode' && provider !== 'mock') {
         return;
     }
 
-    if (!apiKey) {
-        return;
+    // Determine custom base URL for local providers
+    let baseUrl = '';
+    if (provider === 'ollama') {
+        baseUrl = document.getElementById('ollama-host-input')?.value.trim() || 'http://localhost:11434';
+    } else if (provider === 'opencode') {
+        baseUrl = document.getElementById('opencode-host-input')?.value.trim() || 'http://127.0.0.1:4096';
     }
 
     modelGroup.style.display = 'flex';
@@ -172,7 +177,7 @@ async function fetchModels() {
         const response = await fetch('/api/models', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ provider, api_key: apiKey })
+            body: JSON.stringify({ provider, api_key: apiKey, base_url: baseUrl })
         });
         const data = await response.json();
 
@@ -306,6 +311,22 @@ async function runAnalysis() {
 
 // POPULATE DIAGNOSTICS DASHBOARD
 function populateDashboard(score, analysis) {
+    // Show low confidence warning if applicable
+    const confidence = (analysis.classification && analysis.classification.confidence !== undefined)
+        ? analysis.classification.confidence
+        : 1.0;
+    if (analysis.analysis_complete === false || confidence < 0.5) {
+        showNotification(
+            '⚠ Repository classification confidence is low or incomplete. Manual review recommended.',
+            'info'
+        );
+        const projectTypeBadge = document.getElementById('dashboard-project-type');
+        if (projectTypeBadge) {
+            projectTypeBadge.style.background = '#f59e0b'; // amber
+            projectTypeBadge.style.color = '#fff';
+        }
+    }
+
     // Set classification badges
     const projectTypeBadge = document.getElementById('dashboard-project-type');
     const maturityBadge = document.getElementById('dashboard-project-maturity');
@@ -582,6 +603,10 @@ function triggerDraftGeneration() {
     };
 
     startGeneration(true, '', briefOptions);
+}
+
+function regenerateDraft() {
+    triggerDraftGeneration();
 }
 
 // GENERATION API CALL

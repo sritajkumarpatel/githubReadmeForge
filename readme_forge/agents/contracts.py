@@ -227,7 +227,7 @@ def build_documentation_plan(analysis: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def normalize_analysis(raw: Any, scan_results: dict[str, Any], analysis_complete: bool = True) -> dict[str, Any]:
+def normalize_analysis(raw: Any, scan_results: dict[str, Any], analysis_complete: bool = True, context_truncated: bool = False) -> dict[str, Any]:
     """Validate LLM analysis into a complete, backward-compatible contract."""
     raw = raw if isinstance(raw, dict) else {}
     classification = classify_repository(scan_results)
@@ -277,6 +277,7 @@ def normalize_analysis(raw: Any, scan_results: dict[str, Any], analysis_complete
         "connections": _as_dict_list(raw.get("connections")),
         "classification": classification,
         "analysis_complete": analysis_complete,
+        "context_truncated": context_truncated,
     }
     normalized["test_coverage"].setdefault("has_tests", False)
     normalized["test_coverage"].setdefault("framework", "unknown")

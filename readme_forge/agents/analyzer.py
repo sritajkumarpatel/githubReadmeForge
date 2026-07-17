@@ -149,15 +149,25 @@ class AnalyzerAgent:
             "- architecture_layers: 'agents/ — Three specialized AI agents (Reader, Analyzer, Writer) that form the generation pipeline' is better than 'Business Logic Layer'.\n"
         )
 
+        # Prepare character budget based on model provider
+        provider = getattr(self.llm_client, "provider", "mock").lower()
+        budget = 320_000  # Default
+        if provider == "gemini":
+            budget = 3_600_000
+        elif provider == "openai":
+            budget = 320_000
+        elif provider == "claude":
+            budget = 600_000
+        elif provider == "ollama":
+            budget = 24_000
+        elif provider == "mock":
+            budget = 4_000_000
+
         # Prepare user prompt with all codebase data
         tree_text = scan_results.get("tree", "")
         configs_text = ""
         for fn, contents in scan_results.get("configs", {}).items():
             configs_text += f"--- FILE: {fn} ---\n{contents}\n\n"
-
-        code_context_text = ""
-        for path, contents in scan_results.get("code_context", {}).items():
-            code_context_text += f"--- FILE: {path} ---\n{contents}\n\n"
 
         existing_readme = scan_results.get("existing_readme", "")
 
@@ -165,7 +175,6 @@ class AnalyzerAgent:
         for hint in scan_results.get("narrative_hints", []):
             narrative_hints_text += f"- {hint}\n"
 
-        # New: test signals
         test_signals = scan_results.get("test_signals", {})
         test_signals_text = (
             f"- Test framework detected: {test_signals.get('framework', 'unknown')}\n"
@@ -175,7 +184,6 @@ class AnalyzerAgent:
         if test_signals.get("sample_test"):
             test_signals_text += f"- Sample test content: {test_signals.get('sample_test')}\n"
 
-        # New: version info
         version_info = scan_results.get("version_info", {})
         version_text = ""
         if version_info.get("version"):
@@ -183,13 +191,34 @@ class AnalyzerAgent:
         if version_info.get("changelog_snippet"):
             version_text += f"- Recent changelog:\n{version_info.get('changelog_snippet')[:800]}\n"
 
-        # New: external API calls
         external_apis = scan_results.get("external_api_calls", [])
         external_apis_text = ""
         if external_apis:
             external_apis_text = "Outbound HTTP calls detected to these domains:\n"
             for domain in external_apis:
                 external_apis_text += f"  - {domain}\n"
+
+        # Calculate budget for code context
+        fixed_len = (
+            len(tree_text)
+            + len(existing_readme)
+            + len(configs_text)
+            + len(narrative_hints_text)
+            + len(test_signals_text)
+            + len(version_text)
+            + len(external_apis_text)
+            + 2000  # Prompt system template buffer
+        )
+        remaining_budget = budget - fixed_len
+
+        code_context_text = ""
+        context_truncated = False
+        for path, contents in scan_results.get("code_context", {}).items():
+            file_text = f"--- FILE: {path} ---\n{contents}\n\n"
+            if len(code_context_text) + len(file_text) < remaining_budget:
+                code_context_text += file_text
+            else:
+                context_truncated = True
 
         user_prompt = (
             f"Here is the directory tree of the repository:\n"
@@ -243,9 +272,9 @@ class AnalyzerAgent:
 
         try:
             analysis_data = json.loads(clean_response)
-            return normalize_analysis(analysis_data, scan_results)
+            return normalize_analysis(analysis_data, scan_results, context_truncated=context_truncated)
         except Exception as e:
             print(f"[Analyzer] Warning: Failed to parse LLM analysis JSON: {e}")
             # Do not fabricate a generic product description when analysis fails.
             # The normalizer still supplies deterministic repository classification.
-            return normalize_analysis({}, scan_results, analysis_complete=False)
+            return normalize_analysis({}, scan_results, analysis_complete=False, context_truncated=context_truncated)

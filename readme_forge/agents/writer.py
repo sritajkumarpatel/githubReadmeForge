@@ -401,7 +401,12 @@ class WriterAgent:
             "    - Add inline comments (# description) for key files/directories.\n\n"
             "14. **Contributing & License**: Clean links to CONTRIBUTING.md and LICENSE if they exist.\n"
             "    - If test_coverage data is available, mention the test command in this section.\n\n"
-            "Return only the raw markdown content without any wrapper code fences."
+            "Return only the raw markdown content without any wrapper code fences.\n\n"
+            "CRITICAL QUALITY RULE — READ CAREFULLY:\n"
+            "- You MUST NOT write any code/programs (like a calculator or solver) — you are strictly compiling a project README.\n"
+            "- Mermaid diagram syntax rules are absolute: use ONLY `flowchart TD` (NOT `graph TD`), node labels must be quoted strings A[\"Label\"] (NEVER unquoted A[Label] or A(Label)), and node IDs must be single alphanumeric words.\n"
+            "- If an architecture SVG is already listed in visual assets, reference it and DO NOT generate any Mermaid diagram.\n"
+            "- Keep all facts strict and derived from codebase scan results; do not invent files, endpoints, or features."
         )
 
         user_prompt = (

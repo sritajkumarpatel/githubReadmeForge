@@ -206,3 +206,16 @@ def test_drift_tech_noise_reduction():
     assert "Rich CLI" not in dep_items
     assert "Python 3.10" not in dep_items
     assert "Google Gemini API" not in dep_items
+
+
+def test_normalize_analysis_context_truncated():
+    """normalize_analysis must preserve and return context_truncated flag."""
+    scan = {
+        "tree": "mystery-repo/\n└── notes.txt",
+        "configs": {},
+        "code_context": {},
+        "test_signals": {"has_tests": False, "framework": "unknown"},
+    }
+    result = normalize_analysis({}, scan, context_truncated=True)
+    assert result["context_truncated"] is True
+

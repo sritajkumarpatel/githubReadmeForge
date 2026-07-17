@@ -262,11 +262,22 @@ class ReaderAgent:
 
         file_candidates.sort(key=lambda x: x[0], reverse=True)
 
-        for _, p in file_candidates[:max_files]:
+        total_chars = 0
+        char_budget = 50_000
+        for _, p in file_candidates:
             try:
                 rel_path = str(p.relative_to(path_obj))
                 content = p.read_text(errors="ignore")
-                scanned_files[rel_path] = content[:8000]
+                content_to_use = content[:8000]
+                
+                if total_chars + len(content_to_use) <= char_budget:
+                    scanned_files[rel_path] = content_to_use
+                    total_chars += len(content_to_use)
+                else:
+                    rem = char_budget - total_chars
+                    if rem > 1000:
+                        scanned_files[rel_path] = content_to_use[:rem] + "\n\n[Content Truncated due to size constraints...]"
+                    break
             except Exception:
                 pass
 
