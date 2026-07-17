@@ -4,6 +4,9 @@ import os
 from pathlib import Path
 from rich.console import Console
 
+from readme_forge import load_env_file
+load_env_file()
+
 from readme_forge.agents.orchestrator import Orchestrator
 from readme_forge.preview import Previewer
 

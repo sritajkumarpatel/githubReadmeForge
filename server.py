@@ -10,6 +10,9 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent
 sys.path.insert(0, str(project_root))
 
+from readme_forge import load_env_file
+load_env_file()
+
 from readme_forge.llm import LLMClient
 from readme_forge.agents.reader import ReaderAgent
 from readme_forge.agents.analyzer import AnalyzerAgent
