@@ -625,6 +625,7 @@ function triggerDraftGeneration() {
     // Collect pack strategy and CDN asset options
     const visualPack = document.getElementById('brief-visual-pack').value;
     const noExternalAssets = document.getElementById('brief-no-external-assets').checked;
+    const includeHeaderBanner = document.getElementById('brief-include-header-banner').checked;
 
     // Read style from the Brief panel selector (Step 5)
     const styleSelect = document.getElementById('brief-style-select');
@@ -634,6 +635,7 @@ function triggerDraftGeneration() {
         sections: selectedSections,
         visual_pack: visualPack,
         no_external_assets: noExternalAssets,
+        include_header_banner: includeHeaderBanner,
         style: chosenStyle
     };
 

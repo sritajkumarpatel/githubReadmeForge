@@ -38,7 +38,7 @@ def test_visual_generator_writes_portable_assets_and_references(tmp_path):
 
     assert (tmp_path / "assets/readme/brand-light.svg").exists()
     assert (tmp_path / "assets/readme/brand-dark.svg").exists()
-    assert (tmp_path / "assets/readme/architecture.svg").exists()
+    assert assets["architecture"] == ""
     assert (tmp_path / "assets/readme/ATTRIBUTIONS.md").exists()
     assert "img.shields.io/badge" in markdown
     assert "logo=python" in markdown

@@ -102,6 +102,8 @@ class LLMClient:
             elif self.provider == "opencode":
                 return self._generate_opencode(system_prompt, user_prompt, response_format_json)
         except Exception as e:
+            if "not found on local Ollama server" in str(e):
+                raise e
             raise Exception(f"LLM API call failed: {e}")
 
     def _generate_gemini(self, system_prompt, user_prompt, response_format_json):
@@ -154,6 +156,7 @@ class LLMClient:
         return response.content[0].text
 
     def _generate_ollama(self, system_prompt, user_prompt, response_format_json):
+        import requests
         url = f"{self.base_url.rstrip('/')}/api/generate"
         prompt = f"System Instruction:\n{system_prompt}\n\nUser Input:\n{user_prompt}"
         
@@ -165,8 +168,16 @@ class LLMClient:
         if response_format_json:
             data["format"] = "json"
             
-        res = requests.post(url, json=data, timeout=60)
-        res.raise_for_status()
+        try:
+            res = requests.post(url, json=data, timeout=60)
+            res.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 404:
+                raise Exception(
+                    f"Ollama model '{self.model}' not found on local Ollama server. "
+                    f"Please run 'ollama pull {self.model}' in your terminal first."
+                ) from e
+            raise e
         return res.json().get("response", "")
 
     def _generate_opencode(self, system_prompt, user_prompt, response_format_json):

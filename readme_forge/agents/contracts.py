@@ -240,6 +240,29 @@ def build_documentation_plan(analysis: dict[str, Any]) -> dict[str, Any]:
     if "architecture" in available_sections:
         sections.append("architecture")
 
+    # Define the absolute correct order of sections:
+    ordered_keys = [
+        "title",
+        "overview",
+        "problem",
+        "solution",
+        "key_concepts",
+        "architecture",
+        "features",
+        "installation",
+        "usage",
+        "configuration",
+        "api_reference",
+        "data_models",
+        "testing",
+        "repository_structure",
+        "contributing_license",
+    ]
+
+    # Sort sections and available_sections lists to maintain proper document flow:
+    sections = [k for k in ordered_keys if k in sections]
+    available_sections = [k for k in ordered_keys if k in available_sections]
+
     return {
         "version": 1,
         "sections": sections,

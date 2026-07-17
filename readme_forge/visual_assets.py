@@ -158,10 +158,8 @@ class VisualAssetGenerator:
             self._brand_svg(project_name, persona, strategy=strategy, dark=True), encoding="utf-8"
         )
 
-        if flow:
-            (self.assets_dir / "architecture.svg").write_text(
-                self._architecture_svg(flow), encoding="utf-8"
-            )
+        # We no longer generate architecture.svg as a static SVG file.
+        # Instead, it will be rendered natively as a Mermaid diagram in the README.md.
 
         icons = [] if no_external_assets else self._technology_icons(analysis.get("tech_stack", []))
         if icons:
@@ -170,7 +168,7 @@ class VisualAssetGenerator:
         return {
             "brand_light": "assets/readme/brand-light.svg",
             "brand_dark": "assets/readme/brand-dark.svg",
-            "architecture": "assets/readme/architecture.svg" if flow else "",
+            "architecture": "",
             "technology_icons": icons,
             "attributions": "assets/readme/ATTRIBUTIONS.md" if icons else "",
             "component_flow": flow,
@@ -196,13 +194,6 @@ class VisualAssetGenerator:
                     f'alt="{escape(icon["name"])}">'
                 )
             lines.extend(["</p>", ""])
-        if assets.get("architecture"):
-            lines.extend([
-                "",
-                "<p align=\"center\">",
-                f'  <img alt="Concise architecture flow" src="{assets["architecture"]}" width="100%">',
-                "</p>",
-            ])
         return "\n".join(lines)
 
     def _technology_icons(self, tech_stack: Any) -> list[dict[str, str]]:

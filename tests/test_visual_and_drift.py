@@ -24,7 +24,7 @@ def test_visual_asset_generator_strategies(tmp_path):
     assert assets_api["brand_light"] == "assets/readme/brand-light.svg"
     assert (tmp_path / "assets" / "readme" / "brand-light.svg").exists()
     assert (tmp_path / "assets" / "readme" / "brand-dark.svg").exists()
-    assert (tmp_path / "assets" / "readme" / "architecture.svg").exists()
+    assert assets_api["architecture"] == ""
     assert len(assets_api["technology_icons"]) > 0
 
     # 2. Minimal strategy (no files generated)

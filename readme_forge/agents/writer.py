@@ -276,6 +276,7 @@ class WriterAgent:
         architecture_diagram = bool(documentation_plan.get("include_architecture_diagram"))
         visual_intro = ""
         visual_assets = {}  # always initialise so post-processing can safely check it
+        include_header_banner = True
         if style == "visual_rich" and output_dir:
             visual_generator = VisualAssetGenerator(Path(output_dir))
 
@@ -283,6 +284,7 @@ class WriterAgent:
             if brief:
                 visual_pack = brief.get("visual_pack", "ui_app")
                 no_external_assets = bool(brief.get("no_external_assets"))
+                include_header_banner = bool(brief.get("include_header_banner", True))
             else:
                 # Auto-select from classification signal — no user input needed
                 doc_plan = analysis.get("documentation_plan", {})
@@ -304,12 +306,13 @@ class WriterAgent:
         layout_dict = {
             "title": (
                 "1. **Title Block**: Project name as H1 with a compelling tagline.\n"
-                "   Add shields.io badges using EXACTLY these URL patterns (fill in real values):\n"
-                "   ![License](https://img.shields.io/github/license/{owner}/{repo})\n"
-                "   ![Language](https://img.shields.io/github/languages/top/{owner}/{repo})\n"
-                "   If the owner/repo cannot be determined, use a generic language badge like:\n"
-                "   ![Python](https://img.shields.io/badge/python-3.10%2B-blue)\n"
-                "   Maximum 3 badges."
+                "   Immediately below the H1 title, add a row of standard, professional shields.io badges. "
+                "You must include the following badges:\n"
+                "   - **Build Status / CI/CD**: A GitHub Actions status badge (use github/actions/workflow/status/{owner}/{repo}/{workflow_file}.yml if workflows exist, or fallback to a template status badge).\n"
+                "   - **Language / Version**: A badge showing the primary language and version (e.g., Python 3.10+, Node.js >=18, etc. matching the codebase language).\n"
+                "   - **License**: A badge showing the project's license (e.g., MIT, Apache 2.0, or whatever license is detected/analyzed).\n"
+                "   - **Testing / Coverage**: A code coverage or test pass status badge (if the project has tests).\n"
+                "   Format all badges as standard markdown badge links using shields.io style flat-square or flat for a premium look."
             ),
             "overview": (
                 "2. **One-liner tagline**: A single compelling tagline under the title that hooks the reader, followed by a concise narrative summarizing what the project is."
@@ -333,8 +336,7 @@ class WriterAgent:
             "architecture": (
                 "6. **How It Works / Architecture**:\n"
                 "   a) **Architecture Diagram**:\n"
-                "      - If an architecture SVG is listed in visual assets, reference it with: `![Architecture](assets/readme/architecture.svg)` and DO NOT generate a Mermaid block.\n"
-                "      - If architecture is empty/missing, generate a Mermaid TD block with strictly alphanumeric IDs and quoted labels.\n"
+                "      - Generate a native Mermaid.js flowchart TD diagram inside a markdown code block showing the connections and data flows. Use ONLY alphanumeric node IDs and quoted labels like A[\"Label\"] to prevent syntax errors.\n"
                 "   b) **How It Works — Step-by-Step**:\n"
                 "      A numbered walkthrough explaining the component flow (3-7 steps).\n"
                 "   c) **Component Table**: Table: Component | Role | Input | Output."
@@ -361,7 +363,8 @@ class WriterAgent:
                 "13. **Repository Structure**: The scanned directory tree inside a code block with annotations."
             ),
             "contributing_license": (
-                "14. **Contributing & License**: Clean links to CONTRIBUTING.md, LICENSE, and testing run instructions."
+                "14. **Contributing & License**: Clean links to CONTRIBUTING.md, LICENSE, and testing run instructions.\n"
+                "    - SPECIAL GRATITUDE PRESERVATION RULE: If the existing README has any thanks, acknowledgements, gratitude, or 'Thank You' sections at the bottom, you MUST preserve them and append them at the end of this section to keep the project's original sentiment."
             ),
         }
 
@@ -400,8 +403,9 @@ class WriterAgent:
             "CRITICAL QUALITY RULE — READ CAREFULLY:\n"
             "- You MUST NOT write any code/programs (like a calculator or solver) — you are strictly compiling a project README.\n"
             "- Mermaid diagram syntax rules are absolute: use ONLY `flowchart TD` (NOT `graph TD`), node labels must be quoted strings A[\"Label\"] (NEVER unquoted A[Label] or A(Label)), and node IDs must be single alphanumeric words.\n"
-            "- If an architecture SVG is already listed in visual assets, reference it and DO NOT generate any Mermaid diagram.\n"
-            "- Keep all facts strict and derived from codebase scan results; do not invent files, endpoints, or features."
+            "- For the architecture section, you MUST generate a native Mermaid.js flowchart TD diagram inside a markdown code block showing the connections and data flows. Use ONLY quoted labels like A[\"Label\"] to prevent syntax errors.\n"
+            "- Keep all facts strict and derived from codebase scan results; do not invent files, endpoints, or features.\n"
+            "- Preserving gratitude: If the existing README (provided in the user prompt) has any acknowledgements, thanks, or 'Thank You' sections at the bottom, carry them forward to the end of the contributing_license section."
         )
 
         user_prompt = (
@@ -461,17 +465,9 @@ class WriterAgent:
 
         readme_markdown = self.llm_client.generate(system_prompt, user_prompt)
 
-        # Post-process: strip any Mermaid blocks if an architecture SVG was already generated.
-        # The LLM sometimes generates both despite instructions; the SVG is always preferred.
-        if visual_assets and visual_assets.get("architecture"):
-            readme_markdown = re.sub(
-                r'```mermaid\s*\n.*?\n```',
-                f'![Architecture flow](assets/readme/architecture.svg)',
-                readme_markdown,
-                flags=re.DOTALL
-            )
+        # Keep Mermaid blocks natively as requested by user. We no longer replace them with SVGs.
 
-        if visual_intro and "assets/readme/brand-light.svg" not in readme_markdown:
+        if include_header_banner and visual_intro and "assets/readme/brand-light.svg" not in readme_markdown:
             return f"{visual_intro}\n\n{readme_markdown.lstrip()}"
         return readme_markdown
 
