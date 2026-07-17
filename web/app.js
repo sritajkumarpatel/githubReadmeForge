@@ -586,7 +586,10 @@ function loadDesignBrief() {
     };
 
     const docPlan = docPlanContext || { sections: ['title', 'overview'] };
-    Object.entries(sectionDescriptions).forEach(([sec, desc]) => {
+    const available = docPlan.available_sections || Object.keys(sectionDescriptions);
+    available.forEach(sec => {
+        const desc = sectionDescriptions[sec];
+        if (!desc) return;
         const checked = docPlan.sections.includes(sec) ? 'checked' : '';
         const label = document.createElement('label');
         label.className = 'checkbox-label';

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import urllib.parse
 from html import escape
 from pathlib import Path
 from typing import Any
@@ -96,6 +97,28 @@ def select_component_flow(connections: Any, max_nodes: int = 5) -> list[dict[str
 
     return path
 
+import re
+
+def split_node_name(name: str) -> list[str]:
+    """Split camelCase, PascalCase, or snake_case names into up to 3 readable lines."""
+    tokens = re.findall(r'[A-Z]?[a-z]+|[A-Z]+(?=[A-Z][a-z]|\b)|\d+|[a-zA-Z]+', name)
+    if not tokens:
+        return [name]
+    
+    lines = []
+    current_line = ""
+    for token in tokens:
+        if not current_line:
+            current_line = token
+        elif len(current_line) + len(token) <= 12:
+            current_line += token
+        else:
+            lines.append(current_line)
+            current_line = token
+    if current_line:
+        lines.append(current_line)
+    return lines[:3]
+
 
 class VisualAssetGenerator:
     """Builds a self-contained visual package beside a generated README."""
@@ -167,9 +190,10 @@ class VisualAssetGenerator:
         if icons and not no_external_assets:
             lines.extend(["", '<p align="center">'])
             for icon in icons:
+                name_encoded = urllib.parse.quote(icon["name"])
                 lines.append(
-                    f'  <img src="https://cdn.simpleicons.org/{icon["slug"]}" '
-                    f'height="34" alt="{escape(icon["name"])}" title="{escape(icon["name"])}">'
+                    f'  <img src="https://img.shields.io/badge/-{name_encoded}-555555?style=flat-square&logo={icon["slug"]}&logoColor=white" '
+                    f'alt="{escape(icon["name"])}">'
                 )
             lines.extend(["</p>", ""])
         if assets.get("architecture"):
@@ -195,102 +219,117 @@ class VisualAssetGenerator:
         return icons[:6]
 
     def _brand_svg(self, project_name: str, persona: str, strategy: str, dark: bool) -> str:
-        background = "#0b1020" if dark else "#f7f9fc"
-        primary = "#f4f7ff" if dark else "#14213d"
-        muted = "#b7c2e2" if dark else "#52627e"
-        card = "#141c33" if dark else "#ffffff"
-
         if strategy == "ui_app":
-            # Storyboard / UI panel composition
-            return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-label="{escape(project_name)}">
-  <rect width="1200" height="280" fill="{background}"/>
-  <rect x="58" y="32" width="1084" height="216" rx="10" fill="{card}" stroke="{muted}" stroke-width="1" opacity="0.85"/>
-  <rect x="58" y="32" width="1084" height="34" rx="10" fill="{primary}" opacity="0.08"/>
-  <circle cx="82" cy="49" r="5" fill="#ff5f56"/>
-  <circle cx="98" cy="49" r="5" fill="#ffbd2e"/>
-  <circle cx="114" cy="49" r="5" fill="#27c93f"/>
-  <rect x="76" y="80" width="190" height="150" rx="6" fill="{background}" stroke="{muted}" stroke-width="1" opacity="0.5"/>
-  <rect x="290" y="80" width="828" height="150" rx="6" fill="{background}" stroke="{muted}" stroke-width="1" opacity="0.5"/>
-  <text x="318" y="132" fill="{primary}" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="700">{escape(project_name)}</text>
-  <text x="318" y="168" fill="{muted}" font-family="Arial, Helvetica, sans-serif" font-size="17">{escape(persona)}</text>
-  <rect x="318" y="192" width="140" height="26" rx="13" fill="#6d5dfc" opacity="0.9"/>
-  <text x="388" y="209" fill="#ffffff" font-family="Arial, sans-serif" font-size="11" font-weight="bold" text-anchor="middle">UI Application</text>
-</svg>'''
-
+            bg = "#0f172a" if dark else "#f8fafc"
+            primary_text = "#ffffff" if dark else "#0f172a"
+            muted_text = "#94a3b8" if dark else "#475569"
+            badge_bg = "#6d5dfc"
+            accent_color = "#00c2a8"
+            artwork = f'''
+  <rect x="780" y="50" width="340" height="180" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+  <circle cx="802" cy="68" r="5" fill="#ff5f56"/>
+  <circle cx="818" cy="68" r="5" fill="#ffbd2e"/>
+  <circle cx="834" cy="68" r="5" fill="#27c93f"/>
+  <rect x="794" y="92" width="60" height="126" rx="6" fill="#0f172a" opacity="0.4"/>
+  <rect x="866" y="92" width="242" height="60" rx="8" fill="#0f172a" opacity="0.6"/>
+  <rect x="866" y="162" width="114" height="56" rx="8" fill="#0f172a" opacity="0.6"/>
+  <rect x="994" y="162" width="114" height="56" rx="8" fill="{badge_bg}" opacity="0.3"/>
+  <circle cx="1051" cy="190" r="16" fill="{accent_color}" opacity="0.8"/>
+'''
         elif strategy == "api":
-            # API Request-Response flow composition
-            arrow_color = "#6d5dfc"
-            green_arrow = "#00c2a8"
-            return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-label="{escape(project_name)}">
-  <defs>
-    <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="{green_arrow}"/></marker>
-    <marker id="arrow-purple" markerWidth="8" markerHeight="8" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="{arrow_color}"/></marker>
-  </defs>
-  <rect width="1200" height="280" fill="{background}"/>
-  <rect x="80" y="65" width="280" height="150" rx="12" fill="{card}" stroke="{muted}" stroke-width="1" opacity="0.7"/>
-  <text x="220" y="105" text-anchor="middle" fill="{primary}" font-family="Arial, sans-serif" font-size="16" font-weight="700">HTTP Client Request</text>
-  <rect x="110" y="130" width="220" height="28" rx="6" fill="#00c2a8" opacity="0.12"/>
-  <text x="220" y="148" text-anchor="middle" fill="{primary}" font-family="Courier, monospace" font-size="12" font-weight="bold">GET /api/v1/resources</text>
+            bg = "#09090b" if dark else "#f4f4f5"
+            primary_text = "#ffffff" if dark else "#09090b"
+            muted_text = "#a1a1aa" if dark else "#71717a"
+            badge_bg = "#00c2a8"
+            accent_color = "#38bdf8"
+            artwork = f'''
+  <circle cx="950" cy="140" r="32" fill="{accent_color}" opacity="0.15" stroke="{accent_color}" stroke-width="1.5"/>
+  <circle cx="950" cy="140" r="6" fill="{accent_color}"/>
   
-  <path d="M 390 140 H 510" stroke="{arrow_color}" stroke-width="3" stroke-dasharray="5,5" marker-end="url(#arrow-purple)"/>
-  <text x="450" y="125" text-anchor="middle" fill="{muted}" font-family="Arial, sans-serif" font-size="12">JSON Payload</text>
-
-  <rect x="540" y="65" width="300" height="150" rx="12" fill="{card}" stroke="{muted}" stroke-width="1" opacity="0.7"/>
-  <text x="690" y="105" text-anchor="middle" fill="{primary}" font-family="Arial, sans-serif" font-size="16" font-weight="700">API Router Gateway</text>
-  <text x="690" y="142" text-anchor="middle" fill="{muted}" font-family="Arial, sans-serif" font-size="13">{escape(project_name)}</text>
-  <text x="690" y="172" text-anchor="middle" fill="#6d5dfc" font-family="Arial, sans-serif" font-size="12" font-weight="bold">Routing &amp; Endpoints</text>
-
-  <path d="M 870 140 H 990" stroke="{green_arrow}" stroke-width="3" marker-end="url(#arrow-green)"/>
-  <text x="930" y="125" text-anchor="middle" fill="{muted}" font-family="Arial, sans-serif" font-size="12">Response 200 OK</text>
-</svg>'''
-
+  <line x1="950" y1="140" x2="860" y2="90" stroke="#475569" stroke-width="1.5"/>
+  <line x1="950" y1="140" x2="1040" y2="90" stroke="#475569" stroke-width="1.5"/>
+  <line x1="950" y1="140" x2="860" y2="190" stroke="#475569" stroke-width="1.5"/>
+  <line x1="950" y1="140" x2="1040" y2="190" stroke="#475569" stroke-width="1.5"/>
+  
+  <circle cx="860" cy="90" r="14" fill="#1e293b" stroke="{badge_bg}" stroke-width="2"/>
+  <circle cx="860" cy="90" r="4" fill="{badge_bg}"/>
+  
+  <circle cx="1040" cy="90" r="14" fill="#1e293b" stroke="{accent_color}" stroke-width="2"/>
+  <circle cx="1040" cy="90" r="4" fill="{accent_color}"/>
+  
+  <circle cx="860" cy="190" r="14" fill="#1e293b" stroke="{accent_color}" stroke-width="2"/>
+  <circle cx="860" cy="190" r="4" fill="{accent_color}"/>
+  
+  <circle cx="1040" cy="190" r="14" fill="#1e293b" stroke="{badge_bg}" stroke-width="2"/>
+  <circle cx="1040" cy="190" r="4" fill="{badge_bg}"/>
+  
+  <circle cx="950" cy="140" r="75" fill="none" stroke="#475569" stroke-width="1.5" stroke-dasharray="6,6"/>
+'''
         elif strategy == "package":
-            # Code structure / Usage snippet motif
-            return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-label="{escape(project_name)}">
-  <rect width="1200" height="280" fill="{background}"/>
-  <rect x="60" y="40" width="1080" height="200" rx="10" fill="#0f172a" stroke="#1e293b" stroke-width="2"/>
-  <circle cx="90" cy="65" r="5" fill="#ff5f56"/>
-  <circle cx="106" cy="65" r="5" fill="#ffbd2e"/>
-  <circle cx="122" cy="65" r="5" fill="#27c93f"/>
-  <text x="90" y="115" fill="#38bdf8" font-family="Courier, monospace" font-size="16">import {escape(project_name.lower().replace(" ", "_"))}</text>
-  <text x="90" y="150" fill="#e2e8f0" font-family="Courier, monospace" font-size="16">sdk = {escape(project_name.replace(" ", ""))}.initialize(api_key="sk_...")</text>
-  <text x="90" y="185" fill="#34d399" font-family="Courier, monospace" font-size="16">result = sdk.execute(query_context)</text>
-  <text x="90" y="215" fill="#94a3b8" font-family="Courier, monospace" font-size="13"># {escape(persona)}</text>
-</svg>'''
-
+            bg = "#030712" if dark else "#f9fafb"
+            primary_text = "#ffffff" if dark else "#111827"
+            muted_text = "#9ca3af" if dark else "#4b5563"
+            badge_bg = "#6d5dfc"
+            accent_color = "#34d399"
+            artwork = f'''
+  <path d="M 830 80 L 780 140 L 830 200" fill="none" stroke="{accent_color}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 1070 80 L 1120 140 L 1070 200" fill="none" stroke="#38bdf8" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="860" y="90" width="180" height="100" rx="16" fill="#1f2937" stroke="{badge_bg}" stroke-width="2.5"/>
+  <text x="950" y="142" text-anchor="middle" fill="#ffffff" font-family="Courier, monospace" font-size="16" font-weight="bold">import sdk</text>
+  <rect x="890" y="158" width="120" height="6" rx="3" fill="{accent_color}" opacity="0.8"/>
+'''
         elif strategy == "data":
-            # Chart/Schema/Data relationship motif
-            return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-label="{escape(project_name)}">
-  <rect width="1200" height="280" fill="{background}"/>
-  <rect x="100" y="50" width="250" height="180" rx="8" fill="{card}" stroke="{muted}" stroke-width="1"/>
-  <rect x="100" y="50" width="250" height="40" rx="8" fill="#6d5dfc" opacity="0.12"/>
-  <text x="225" y="75" text-anchor="middle" fill="{primary}" font-family="Arial, sans-serif" font-weight="bold" font-size="14">Source Code Input</text>
-  <text x="120" y="120" fill="{muted}" font-family="Arial, sans-serif" font-size="12">🗝️ id : INT</text>
-  <text x="120" y="150" fill="{muted}" font-family="Arial, sans-serif" font-size="12">🔹 path : VARCHAR</text>
-  <text x="120" y="180" fill="{muted}" font-family="Arial, sans-serif" font-size="12">🔹 content : TEXT</text>
-
-  <path d="M 370 140 H 490" stroke="#6d5dfc" stroke-width="3" marker-end="url(#arrow)"/>
-
-  <rect x="510" y="50" width="260" height="180" rx="8" fill="{card}" stroke="{muted}" stroke-width="1"/>
-  <rect x="510" y="50" width="260" height="40" rx="8" fill="#00c2a8" opacity="0.12"/>
-  <text x="640" y="75" text-anchor="middle" fill="{primary}" font-family="Arial, sans-serif" font-weight="bold" font-size="14">Analysis Output</text>
-  <text x="530" y="120" fill="{muted}" font-family="Arial, sans-serif" font-size="12">🗝️ analysis_id : INT</text>
-  <text x="530" y="150" fill="{muted}" font-family="Arial, sans-serif" font-size="12">🔹 sections : ARRAY</text>
-  <text x="530" y="180" fill="{muted}" font-family="Arial, sans-serif" font-size="12">🔹 strategy : VARCHAR</text>
-</svg>'''
-
+            bg = "#081b33" if dark else "#f0f4f8"
+            primary_text = "#ffffff" if dark else "#0f2d4a"
+            muted_text = "#9ab6d6" if dark else "#4a6b82"
+            badge_bg = "#38bdf8"
+            accent_color = "#ffffff"
+            artwork = f'''
+  <rect x="790" y="60" width="130" height="110" rx="8" fill="#111c30" stroke="#38bdf8" stroke-width="1.5"/>
+  <rect x="790" y="60" width="130" height="28" rx="8" fill="#38bdf8" opacity="0.2"/>
+  <line x1="790" y1="88" x2="920" y2="88" stroke="#38bdf8" stroke-width="1.5"/>
+  <line x1="790" y1="116" x2="920" y2="116" stroke="#1d2e4a"/>
+  <line x1="790" y1="144" x2="920" y2="144" stroke="#1d2e4a"/>
+  <circle cx="810" cy="74" r="4" fill="#38bdf8"/>
+  
+  <rect x="970" y="110" width="130" height="110" rx="8" fill="#111c30" stroke="#00c2a8" stroke-width="1.5"/>
+  <rect x="970" y="110" width="130" height="28" rx="8" fill="#00c2a8" opacity="0.2"/>
+  <line x1="970" y1="138" x2="1100" y2="138" stroke="#00c2a8" stroke-width="1.5"/>
+  <line x1="970" y1="166" x2="1100" y2="166" stroke="#1d2e4a"/>
+  <line x1="970" y1="194" x2="1100" y2="194" stroke="#1d2e4a"/>
+  <circle cx="990" cy="124" r="4" fill="#00c2a8"/>
+  
+  <path d="M 920 115 H 970" stroke="{badge_bg}" stroke-width="2.5" stroke-dasharray="4,4"/>
+  <circle cx="920" cy="115" r="4" fill="{badge_bg}"/>
+  <circle cx="970" cy="115" r="4" fill="{badge_bg}"/>
+'''
         else:
-            # Default fallback brand SVG
-            return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-label="{escape(project_name)}">
-  <rect width="1200" height="280" fill="{background}"/>
-  <circle cx="1080" cy="48" r="210" fill="#6d5dfc" opacity=".18"/>
-  <circle cx="1120" cy="258" r="170" fill="#00c2a8" opacity=".12"/>
-  <rect x="58" y="52" width="116" height="116" rx="30" fill="{card}"/>
-  <path d="M88 112 116 84l28 28-28 28z" fill="#6d5dfc"/>
-  <path d="m116 84 28 28-28 28" fill="#00c2a8" opacity=".88"/>
-  <text x="208" y="110" fill="{primary}" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="700">{escape(project_name)}</text>
-  <text x="208" y="151" fill="{muted}" font-family="Arial, Helvetica, sans-serif" font-size="21">{escape(persona)}</text>
-  <rect x="208" y="185" width="240" height="5" rx="2.5" fill="#6d5dfc"/>
+            bg = "#faf9f6" if not dark else "#0c0a09"
+            primary_text = "#1c1917" if not dark else "#f5f5f4"
+            muted_text = "#78716c" if not dark else "#a8a29e"
+            badge_bg = "#ea580c"
+            accent_color = "#3b82f6"
+            artwork = f'''
+  <path d="M 760 170 Q 860 50 960 170 T 1160 50" fill="none" stroke="{badge_bg}" stroke-width="4.5" stroke-linecap="round"/>
+  <circle cx="960" cy="170" r="7" fill="{accent_color}" stroke="#ffffff" stroke-width="2.5"/>
+  <circle cx="860" cy="90" r="7" fill="#ff5f56" stroke="#ffffff" stroke-width="2.5"/>
+  <circle cx="1060" cy="90" r="7" fill="#ffbd2e" stroke="#ffffff" stroke-width="2.5"/>
+'''
+
+        strategy_label = strategy.upper().replace("_", " ")
+        if strategy_label == "UI APP":
+            strategy_label = "UI APPLICATION"
+
+        return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-label="{escape(project_name)}">
+  <rect width="1200" height="280" fill="{bg}"/>
+  
+  <text x="60" y="110" fill="{primary_text}" font-family="system-ui, -apple-system, sans-serif" font-size="48" font-weight="800">{escape(project_name)}</text>
+  <text x="60" y="152" fill="{muted_text}" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="400">{escape(persona)}</text>
+  
+  <rect x="60" y="182" width="180" height="28" rx="14" fill="{badge_bg}" opacity="0.85"/>
+  <text x="150" y="200" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="bold" text-anchor="middle">{strategy_label}</text>
+  
+  {artwork}
 </svg>'''
 
     def _architecture_svg(self, flow: list[dict[str, str]]) -> str:
@@ -300,16 +339,28 @@ class VisualAssetGenerator:
         arrows = []
         for index, node in enumerate(nodes):
             x = 40 + 225 * index
-            cards.append(
-                f'<rect x="{x}" y="82" width="170" height="88" rx="18" fill="#ffffff" stroke="#dbe4f0"/>'
-                f'<text x="{x + 85}" y="123" text-anchor="middle" fill="#14213d" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700">{escape(node)}</text>'
-            )
+            node_lines = split_node_name(node)
+            cards.append(f'<rect x="{x}" y="82" width="170" height="88" rx="18" fill="#ffffff" stroke="#dbe4f0" stroke-width="1.5"/>')
+            if len(node_lines) == 1:
+                cards.append(f'<text x="{x + 85}" y="131" text-anchor="middle" fill="#14213d" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="700">{escape(node_lines[0])}</text>')
+            elif len(node_lines) == 2:
+                cards.append(
+                    f'<text x="{x + 85}" y="122" text-anchor="middle" fill="#14213d" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700">{escape(node_lines[0])}</text>'
+                    f'<text x="{x + 85}" y="142" text-anchor="middle" fill="#14213d" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700">{escape(node_lines[1])}</text>'
+                )
+            else:
+                cards.append(
+                    f'<text x="{x + 85}" y="114" text-anchor="middle" fill="#14213d" font-family="Arial, Helvetica, sans-serif" font-size="10.5" font-weight="700">{escape(node_lines[0])}</text>'
+                    f'<text x="{x + 85}" y="132" text-anchor="middle" fill="#14213d" font-family="Arial, Helvetica, sans-serif" font-size="10.5" font-weight="700">{escape(node_lines[1])}</text>'
+                    f'<text x="{x + 85}" y="150" text-anchor="middle" fill="#14213d" font-family="Arial, Helvetica, sans-serif" font-size="10.5" font-weight="700">{escape(node_lines[2])}</text>'
+                )
             if index < len(flow):
                 arrow_x = x + 170
                 label = flow[index]["relationship"]
-                arrows.append(f'<path d="M {arrow_x + 10} 126 H {arrow_x + 45}" stroke="#6d5dfc" stroke-width="3" marker-end="url(#arrow)"/>')
+                arrows.append(f'<path d="M {arrow_x + 8} 126 H {arrow_x + 47}" stroke="#6d5dfc" stroke-width="3" marker-end="url(#arrow)"/>')
                 if label:
-                    arrows.append(f'<text x="{arrow_x + 28}" y="104" text-anchor="middle" fill="#52627e" font-family="Arial, Helvetica, sans-serif" font-size="11">{escape(label)}</text>')
+                    short_label = label[:14] + "..." if len(label) > 14 else label
+                    arrows.append(f'<text x="{arrow_x + 27}" y="106" text-anchor="middle" fill="#52627e" font-family="Arial, Helvetica, sans-serif" font-size="9">{escape(short_label)}</text>')
         return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="250" viewBox="0 0 {width} 250" role="img" aria-label="Concise architecture flow">
   <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#6d5dfc"/></marker></defs>
   <rect width="100%" height="100%" rx="24" fill="#f7f9fc"/>

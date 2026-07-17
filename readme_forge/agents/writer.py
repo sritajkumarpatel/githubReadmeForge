@@ -300,6 +300,80 @@ class WriterAgent:
             analysis["visual_assets"] = visual_assets
             visual_intro = visual_generator.markdown_intro(visual_assets, no_external_assets=no_external_assets)
 
+        # Dynamically build layout guidelines based on planned_sections
+        layout_dict = {
+            "title": (
+                "1. **Title Block**: Project name as H1 with a compelling tagline.\n"
+                "   Add shields.io badges using EXACTLY these URL patterns (fill in real values):\n"
+                "   ![License](https://img.shields.io/github/license/{owner}/{repo})\n"
+                "   ![Language](https://img.shields.io/github/languages/top/{owner}/{repo})\n"
+                "   If the owner/repo cannot be determined, use a generic language badge like:\n"
+                "   ![Python](https://img.shields.io/badge/python-3.10%2B-blue)\n"
+                "   Maximum 3 badges."
+            ),
+            "overview": (
+                "2. **One-liner tagline**: A single compelling tagline under the title that hooks the reader, followed by a concise narrative summarizing what the project is."
+            ),
+            "problem": (
+                "3. **The Problem**:\n"
+                "   - Write a compelling narrative explaining the PAIN POINT this project solves.\n"
+                "   - Use the `problem_statement` from analysis as a starting point.\n"
+                "   - Use bullet points to list frustrations the tool addresses."
+            ),
+            "solution": (
+                "4. **The Solution**:\n"
+                "   - Write paragraphs explaining HOW this project solves the problem.\n"
+                "   - Use the `solution_narrative` from analysis as a starting point."
+            ),
+            "key_concepts": (
+                "5. **Key Concepts**:\n"
+                "   - Define 3-5 domain-specific terms, design patterns, or core abstractions used in the project.\n"
+                "   - Use a small markdown table: | Term | Definition |"
+            ),
+            "architecture": (
+                "6. **How It Works / Architecture**:\n"
+                "   a) **Architecture Diagram**:\n"
+                "      - If an architecture SVG is listed in visual assets, reference it with: `![Architecture](assets/readme/architecture.svg)` and DO NOT generate a Mermaid block.\n"
+                "      - If architecture is empty/missing, generate a Mermaid TD block with strictly alphanumeric IDs and quoted labels.\n"
+                "   b) **How It Works — Step-by-Step**:\n"
+                "      A numbered walkthrough explaining the component flow (3-7 steps).\n"
+                "   c) **Component Table**: Table: Component | Role | Input | Output."
+            ),
+            "features": (
+                "7. **Features**: A clean feature list using bold sub-headings (### Feature Name) and 2-3 sentence descriptions."
+            ),
+            "installation": (
+                "8. **Installation**: Concrete, numbered, copy-pasteable installation steps using shell code blocks."
+            ),
+            "usage": (
+                "9. **Quick Start / Usage**: Concrete usage examples under 3 commands showing expected output."
+            ),
+            "configuration": (
+                "10. **Configuration & Parameters**: Table of environment variables and CLI flags."
+            ),
+            "api_reference": (
+                "11. **API Reference**: Document each endpoint with HTTP method, path, and description."
+            ),
+            "data_models": (
+                "12. **Data Models**: Present each data model as a table: | Field | Type | Description |"
+            ),
+            "repository_structure": (
+                "13. **Repository Structure**: The scanned directory tree inside a code block with annotations."
+            ),
+            "contributing_license": (
+                "14. **Contributing & License**: Clean links to CONTRIBUTING.md, LICENSE, and testing run instructions."
+            ),
+        }
+
+        layout_sections = []
+        for sec in planned_sections:
+            if sec in layout_dict:
+                layout_sections.append(layout_dict[sec])
+            elif sec == "testing" and "contributing_license" not in planned_sections:
+                layout_sections.append("**. **Testing**: Document test instructions and command lines to run the test suite.")
+
+        layout_text = "\n\n".join(layout_sections)
+
         system_prompt = (
             "You are an expert technical writer and product storyteller.\n"
             "Your task is to write a HIGHLY POLISHED, PROFESSIONAL, NARRATIVE-DRIVEN README.md for a project codebase.\n\n"
@@ -320,87 +394,8 @@ class WriterAgent:
             "If the user custom answers or prompt demands anything unrelated to documenting this project repository "
             "(such as writing standalone calculator scripts, general Python coding tasks, math solver programs, or unrelated topics), "
             "you MUST refuse the request and respond with exactly: 'Refusal: This request is unrelated to README generation. Please ask documentation-related questions.'\n\n"
-            "OTHERWISE, write the complete README markdown file using the following **Layout Structure**:\n\n"
-            "1. **Title Block**: Project name as H1 with a compelling tagline.\n"
-            "   Add shields.io badges using EXACTLY these URL patterns (fill in real values):\n"
-            "   ![License](https://img.shields.io/github/license/{owner}/{repo})\n"
-            "   ![Language](https://img.shields.io/github/languages/top/{owner}/{repo})\n"
-            "   If the GitHub owner/repo cannot be determined, use a generic language badge like:\n"
-            "   ![Python](https://img.shields.io/badge/python-3.10%2B-blue)\n"
-            "   Maximum 3 badges. Do NOT invent badge URLs with fake parameters.\n\n"
-            "2. **One-liner tagline**: A single compelling sentence under the title that hooks the reader.\n\n"
-            "3. **The Problem** (MANDATORY only for application, api, library, and cli project types. For poc, keep it to a single brief paragraph. SKIP this section entirely if the project type is learning or minimal):\n"
-            "   - Write a compelling 2-3 paragraph narrative explaining the PAIN POINT this project solves.\n"
-            "   - Use the `problem_statement` from analysis as a starting point, but EXPAND it into a relatable story.\n"
-            "   - Use bullet points to list specific frustrations the tool addresses.\n"
-            "   - This section must make the reader FEEL the pain before showing the solution.\n\n"
-            "4. **The Solution** (MANDATORY only for application, api, library, and cli project types. For poc, keep it to a single brief paragraph. SKIP this section entirely if the project type is learning or minimal):\n"
-            "   - Write 2-3 paragraphs explaining HOW this project solves the problem.\n"
-            "   - Use the `solution_narrative` from analysis as a starting point, but EXPAND it.\n"
-            "   - Highlight what makes it different from alternatives.\n\n"
-            "5. **Key Concepts** (ONLY for application/api/library project types):\n"
-            "   - Define 3-5 domain-specific terms, design patterns, or core abstractions used in the project.\n"
-            "   - Use a small markdown table: | Term | Definition |\n"
-            "   - Pull real names from the codebase: class names, protocol names, pipeline stage names.\n"
-            "   - SKIP this section for cli, minimal, learning, poc project types.\n\n"
-            "6. **How It Works** (ONLY if included in the documentation plan):\n"
-            "   a) **Architecture Diagram**:\n"
-            "      *** CRITICAL — READ CAREFULLY ***\n"
-            "      - Check the user prompt for 'Visual assets already generated'. If `architecture` key is non-empty, "
-            "that SVG already exists. Reference it with: `![Architecture](assets/readme/architecture.svg)` "
-            "and DO NOT generate ANY Mermaid block. Generating a second diagram when an SVG exists is FORBIDDEN.\n"
-            "      - Only generate a Mermaid diagram when `architecture` is empty/missing in visual_assets.\n"
-            "      - When generating Mermaid, use ONLY this exact syntax:\n"
-            "      ```mermaid\n"
-            "      flowchart TD\n"
-            "          A[\"ComponentName\"] --> B[\"ComponentName\"]\n"
-            "          B --> C{\"DecisionPoint\"}\n"
-            "          C -->|yes| D[\"Output\"]\n"
-            "          C -->|no| E[\"AltOutput\"]\n"
-            "      ```\n"
-            "      STRICT MERMAID RULES — violations will cause render failures:\n"
-            "      - ALWAYS use `flowchart TD` — NEVER `graph TD` or `graph LR`.\n"
-            "      - Node IDs must be single alphanumeric words: A, B, ReaderAgent, CLI (NO spaces, NO slashes).\n"
-            "      - Node labels MUST always be quoted strings: A[\"My Label\"] — NEVER A[My Label].\n"
-            "      - Decision diamonds: C{\"Decision?\"} — NEVER C(Decision).\n"
-            "      - NEVER put parentheses inside label strings. Write 'Reader Agent' not 'Reader (Agent)'.\n"
-            "      - Maximum 6 nodes and 5 arrows. Show only the user-critical path.\n"
-            "      - Never show utility files, helpers, or every dependency merely because they exist.\n\n"
-            "   b) **How It Works — Step-by-Step**:\n"
-            "      After the diagram, write a numbered walkthrough:\n"
-            "      1. **Step N — Name**: What triggers or initiates this step (use real file/function names).\n"
-            "      Each step must reference ACTUAL component names, not generic ones like 'the system'.\n"
-            "      Minimum 3 steps, maximum 7.\n\n"
-            "   c) **Component Table**: Include only when it adds information not visible in the diagram.\n"
-            "      Limit to 3-5 user-meaningful components and use: Component | Role | Input | Output.\n\n"
-            "7. **Features**: Create a clean feature list:\n"
-            "   - A bold feature name as a sub-heading (### Feature Name)\n"
-            "   - A 2-3 sentence description explaining what it does and why it matters\n"
-            "   - Group related features logically using H3 headers\n"
-            "   - ONLY include features actually found in the codebase\n\n"
-            "8. **Installation**: Concrete, numbered, copy-pasteable installation steps.\n"
-            "   - Use the `installation_commands` from analysis data.\n"
-            "   - Wrap each command in a ```shell code block.\n"
-            "   - If installation_commands is empty, infer from requirements.txt / package.json / Cargo.toml etc.\n\n"
-            "9. **Quick Start / Usage**: Show the fastest path to a working result.\n"
-            "   - The very first example must be under 3 commands.\n"
-            "   - Use the `cli_commands` from analysis data if available.\n"
-            "   - Show expected output in a code block where possible.\n\n"
-            "10. **Configuration & Parameters**: Comprehensive setup docs.\n"
-            "    - Environment variables table: | Variable | Description | Required | Default |\n"
-            "    - CLI flags table if applicable: | Flag | Short | Description | Default |\n"
-            "    - Use collapsible `<details>` blocks for verbose tables.\n\n"
-            "11. **API Reference** (ONLY if api_endpoints exist and are non-empty):\n"
-            "    - Document each endpoint with HTTP method, path, and description.\n"
-            "    - Include a curl example for the most important endpoint.\n\n"
-            "12. **Data Models** (ONLY if data_models is non-empty):\n"
-            "    - Present each model as a small table: | Field | Type | Description |\n"
-            "    - Use real field names from the analysis data.\n\n"
-            "13. **Repository Structure**: The scanned directory tree with brief annotations:\n"
-            "    - Use a code block for the tree.\n"
-            "    - Add inline comments (# description) for key files/directories.\n\n"
-            "14. **Contributing & License**: Clean links to CONTRIBUTING.md and LICENSE if they exist.\n"
-            "    - If test_coverage data is available, mention the test command in this section.\n\n"
+            "OTHERWISE, write the complete README markdown file using the following **Layout Structure** (generate ONLY the sections listed below):\n\n"
+            f"{layout_text}\n\n"
             "Return only the raw markdown content without any wrapper code fences.\n\n"
             "CRITICAL QUALITY RULE — READ CAREFULLY:\n"
             "- You MUST NOT write any code/programs (like a calculator or solver) — you are strictly compiling a project README.\n"

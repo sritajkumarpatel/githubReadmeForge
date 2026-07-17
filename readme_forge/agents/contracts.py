@@ -185,37 +185,65 @@ def build_documentation_plan(analysis: dict[str, Any]) -> dict[str, Any]:
         classification = {}
     intent = classification.get("primary_intent", analysis.get("project_type", "application"))
     surfaces = _as_string_list(classification.get("delivery_surfaces", []))
-    sections = ["title", "overview"]
 
-    # Problem / solution only make sense for substantive project types.
+    # All sections that are universal or have evidence/support in the codebase
+    available_sections = ["title", "overview", "features", "repository_structure", "contributing_license"]
+
+    # Problem/solution availability
     if intent not in {"learning", "minimal", "unknown"}:
-        sections.extend(["problem", "solution"])
+        available_sections.extend(["problem", "solution"])
 
-    # Demo and PoC get a shorter "demonstration" section instead of full problem/solution.
-    # (They already got "problem" + "solution" above for poc/demo — that's intentional;
-    # they just get brief versions per the writer instructions.)
+    # key_concepts availability
+    if intent in {"application", "api", "library"}:
+        available_sections.append("key_concepts")
 
-    if analysis.get("installation_commands") or "package" in surfaces:
-        sections.append("installation")
+    # installation availability
+    if analysis.get("installation_commands") or "package" in surfaces or "application" in surfaces or analysis.get("version_info"):
+        available_sections.append("installation")
+
+    # usage availability
     if analysis.get("cli_commands") or "cli" in surfaces:
-        sections.append("usage")
+        available_sections.append("usage")
+
+    # configuration availability
     if analysis.get("config_variables"):
-        sections.append("configuration")
+        available_sections.append("configuration")
+
+    # api_reference availability
     if analysis.get("api_endpoints") or "api" in surfaces:
-        sections.append("api_reference")
-    if analysis.get("key_features"):
-        sections.append("features")
+        available_sections.append("api_reference")
+
+    # architecture availability
     if analysis.get("connections") or analysis.get("architecture_layers"):
-        sections.append("architecture")
+        available_sections.append("architecture")
+
+    # data_models availability
     if analysis.get("data_models"):
-        sections.append("data_models")
-    if analysis.get("test_coverage", {}).get("has_tests"):
-        sections.append("testing")
-    sections.extend(["repository_structure", "contributing_license"])
+        available_sections.append("data_models")
+
+    # testing availability
+    test_cov = analysis.get("test_coverage", {})
+    if test_cov.get("has_tests") or test_cov.get("test_commands"):
+        available_sections.append("testing")
+
+    # Now select the most important sections to recommend/pre-check by default:
+    sections = ["title", "overview", "features", "repository_structure", "contributing_license"]
+
+    if "problem" in available_sections and intent in {"application", "api", "library", "cli"}:
+        sections.append("problem")
+    if "solution" in available_sections and intent in {"application", "api", "library", "cli"}:
+        sections.append("solution")
+    if "installation" in available_sections:
+        sections.append("installation")
+    if "usage" in available_sections:
+        sections.append("usage")
+    if "architecture" in available_sections:
+        sections.append("architecture")
 
     return {
         "version": 1,
         "sections": sections,
+        "available_sections": available_sections,
         "primary_intent": intent,
         "delivery_surfaces": surfaces,
         "include_architecture_diagram": len(_as_dict_list(analysis.get("connections"))) >= 2,
