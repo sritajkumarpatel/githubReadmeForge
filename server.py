@@ -620,6 +620,13 @@ def run_server(port=8080):
     for stale in glob.glob("/tmp/readme_forge_clone_*"):
         shutil.rmtree(stale, ignore_errors=True)
 
+    # Startup cleanup of stale draft folders left over from previous runs.
+    # These are never committed (covered by .gitignore) but can pile up locally.
+    project_root_path = Path(__file__).resolve().parent
+    for stale in glob.glob(str(project_root_path / ".readme_forge_draft*")):
+        if Path(stale).is_dir():
+            shutil.rmtree(stale, ignore_errors=True)
+
     server_address = ('', port)
     httpd = HTTPServer(server_address, APIRequestHandler)
     print(f"==================================================")

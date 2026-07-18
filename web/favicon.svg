@@ -1,4 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="6" fill="#0369a1"/>
-  <text x="16" y="22" font-family="Arial" font-size="16" font-weight="bold" fill="white" text-anchor="middle">R</text>
+    <defs>
+        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#0369a1"/>
+            <stop offset="100%" stop-color="#0c4a6e"/>
+        </linearGradient>
+    </defs>
+    <!-- Rounded background -->
+    <rect width="32" height="32" rx="7" fill="url(#bg)"/>
+    <!-- Document shape with folded corner -->
+    <path d="M 9 7 L 20 7 L 25 12 L 25 25 L 9 25 Z" fill="white"/>
+    <!-- Folded corner triangle -->
+    <path d="M 20 7 L 25 12 L 20 12 Z" fill="#cbd5e1"/>
+    <!-- Code/text lines inside the document -->
+    <rect x="11.5" y="15" width="9" height="1.6" rx="0.6" fill="#0369a1"/>
+    <rect x="11.5" y="18" width="11" height="1.6" rx="0.6" fill="#94a3b8"/>
+    <rect x="11.5" y="21" width="7" height="1.6" rx="0.6" fill="#0369a1"/>
 </svg>
