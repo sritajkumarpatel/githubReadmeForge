@@ -25,27 +25,27 @@
             <div class="step-indicator">
                 <div class="step-item active" data-step="1">
                     <div class="step-dot"></div>
-                    <span class="step-label">Start</span>
+                    <span class="step-label">Welcome</span>
                 </div>
                 <div class="step-line"></div>
                 <div class="step-item" data-step="2">
                     <div class="step-dot"></div>
-                    <span class="step-label">Provider</span>
+                    <span class="step-label">AI Setup</span>
                 </div>
                 <div class="step-line"></div>
                 <div class="step-item" data-step="3">
                     <div class="step-dot"></div>
-                    <span class="step-label">Ingest</span>
+                    <span class="step-label">Repo</span>
                 </div>
                 <div class="step-line"></div>
                 <div class="step-item" data-step="4">
                     <div class="step-dot"></div>
-                    <span class="step-label">Analyze</span>
+                    <span class="step-label">Insights</span>
                 </div>
                 <div class="step-line"></div>
                 <div class="step-item" data-step="5">
                     <div class="step-dot"></div>
-                    <span class="step-label">Brief</span>
+                    <span class="step-label">Customize</span>
                 </div>
                 <div class="step-line"></div>
                 <div class="step-item" data-step="6">
@@ -61,55 +61,95 @@
             <!-- STEP 1: HOME PAGE -->
             <section class="wizard-panel active" id="panel-1">
                 <div class="intro-hero">
-                    <h2>Tired of Maintaining Boring, Text-Heavy READMEs?</h2>
-                    <p class="hero-desc">
-                        Stop struggling with manual documentation. <code>githubReadmeForge</code> orchestrates collaborative AI agents to analyze your codebase, calculate document health ratings, and forge beautiful, visual-rich documentation and web-companion showrooms.
-                    </p>
-                    
-                    <div class="features-grid">
-                        <div class="feature-card">
-                            <h3>Automated Diagnostics</h3>
-                            <p>Compares your code against your README to score completeness and locate documentation gaps.</p>
+                    <div class="hero-grid">
+                        <div class="hero-copy">
+                            <span class="eyebrow">Multi-agent README generator</span>
+                            <h2>From a GitHub link to a polished README in under a minute.</h2>
+                            <p class="hero-desc">
+                                <code>githubReadmeForge</code> uses a three-agent AI pipeline to scan your repo, identify gaps, and forge production-grade documentation &mdash; in any style, any language. No boilerplate, no fluff, no broken badges.
+                            </p>
+                            <ul class="hero-points">
+                                <li><strong>5 battle-tested styles</strong> &mdash; reference, narrative, tutorial, showcase, or minimal. Modeled after the top 100 GitHub READMEs.</li>
+                                <li><strong>5 LLM providers</strong> &mdash; Gemini, OpenAI, Claude, Ollama (local), or OpenCode. Your key stays in this tab.</li>
+                                <li><strong>Diff view + companion site</strong> &mdash; see exactly what changed and publish a beautiful HTML showcase alongside your README.</li>
+                            </ul>
+                            <button class="btn btn-primary btn-large btn-glow" onclick="goToStep(2)">
+                                Start Forging
+                                <svg class="btn-chev" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 10h10m0 0l-4-4m4 4l-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            </button>
                         </div>
-                        <div class="feature-card">
-                            <h3>Visual Architecture Maps</h3>
-                            <p>Deduces technical architecture and injects live Mermaid.js system structure flows.</p>
-                        </div>
-                        <div class="feature-card">
-                            <h3>Showroom Page Generator</h3>
-                            <p>Builds a stunning, standalone glassmorphic companion site perfect for GitHub Pages.</p>
+                        <div class="hero-mockup" aria-hidden="true">
+                            <div class="mock-card">
+                                <div class="mock-row"><span class="mock-dot red"></span><span class="mock-dot yellow"></span><span class="mock-dot green"></span><span class="mock-filename">README.md</span></div>
+                                <div class="mock-body">
+                                    <pre><span class="mock-muted">#</span> <span class="mock-h1">my-cool-project</span>
+<span class="mock-muted">### A fast, opinionated CLI for turning repos into READMEs.</span>
+
+[<img src="https://img.shields.io/badge/license-MIT-green">] [<img src="https://img.shields.io/badge/build-passing-brightgreen">] [<img src="https://img.shields.io/badge/coverage-94%25-blue">]
+
+<span class="mock-muted">## What it does</span>
+- Scans your repo in seconds
+- Picks the right README style automatically
+- Generates a companion HTML showcase
+- Translates to 6 languages on demand
+
+<span class="mock-muted">## Quick start</span>
+<span class="mock-code">$</span> pip install my-cool-project
+<span class="mock-code">$</span> my-cool-project --repo ./</pre>
+                                </div>
+                            </div>
+                            <div class="mock-arrow">→</div>
+                            <div class="mock-card mock-card-after">
+                                <div class="mock-row"><span class="mock-dot red"></span><span class="mock-dot yellow"></span><span class="mock-dot green"></span><span class="mock-filename">README.md <span class="mock-tag">generated</span></span></div>
+                                <div class="mock-body">
+                                    <pre><span class="mock-muted">#</span> <span class="mock-h1">my-cool-project</span>
+<span class="mock-muted">### Ship docs, not excuses.</span>
+
+<span class="mock-muted">## The Problem</span>
+Writing a README is the part of the job nobody
+enjoys. It always lags behind the code...
+
+<span class="mock-muted">## The Solution</span>
+Three AI agents handle it end-to-end: scan, analyze,
+write. You keep the credit, the docs stay current.
+
+<span class="mock-muted">## Quick start</span>
+<span class="mock-code">$</span> pip install my-cool-project
+<span class="mock-code">$</span> my-cool-project --repo ./
+<span class="mock-muted">## Why it works</span>
+- <span class="mock-em">5 styles</span> auto-matched to your project
+- <span class="mock-em">5 LLMs</span> supported, your choice
+- <span class="mock-em">HTML showcase</span> included</pre>
+                                </div>
+                            </div>
                         </div>
                     </div>
-
-                    <button class="btn btn-primary btn-large btn-glow" onclick="goToStep(2)">
-                        Start Forging &nbsp; →
-                    </button>
                 </div>
             </section>
 
             <!-- STEP 2: LLM CONFIGURATION -->
             <section class="wizard-panel" id="panel-2">
                 <div class="config-wrapper">
-                    <h2>Select AI Orchestrator Backend</h2>
-                    <p class="panel-desc">Configure your LLM model details. Credentials remain entirely in memory and are never persisted.</p>
+                    <h2>Pick your AI engine</h2>
+                    <p class="panel-desc">Choose the model that will read your repo and write the README. Your key stays in this browser tab and is never stored on any server.</p>
 
                     <div class="form-group">
-                        <label for="provider-select">LLM Provider</label>
+                        <label for="provider-select">AI Provider</label>
                         <select id="provider-select" onchange="handleProviderChange()">
                             <option value="" disabled selected>Select a provider...</option>
-                            <option value="gemini">Google Gemini</option>
-                            <option value="openai">OpenAI</option>
-                            <option value="claude">Anthropic Claude</option>
-                            <option value="ollama">Ollama (Local Offline LLM)</option>
-                            <option value="opencode">OpenCode (AI Coding Agent)</option>
+                            <option value="gemini">Google Gemini — fast, generous free tier</option>
+                            <option value="openai">OpenAI — GPT-4o, GPT-4o-mini</option>
+                            <option value="claude">Anthropic Claude — long-context friendly</option>
+                            <option value="ollama">Ollama — runs fully on your machine, no key needed</option>
+                            <option value="opencode">OpenCode — your local coding agent as a backend</option>
                         </select>
                     </div>
 
                     <div class="form-group" id="api-key-group" style="display: none;">
-                        <label for="api-key-input">API Key</label>
+                        <label for="api-key-input">API Key <span class="reassure">🔒 stays in this tab, never sent to us</span></label>
                         <div class="input-with-btn">
-                            <input type="password" id="api-key-input" placeholder="Enter your provider API Key" onchange="fetchModels()">
-                            <button class="btn btn-secondary" onclick="fetchModels()" type="button">Fetch Models</button>
+                            <input type="password" id="api-key-input" placeholder="Paste your API key here" onchange="fetchModels()">
+                            <button class="btn btn-secondary" onclick="fetchModels()" type="button">Load models</button>
                         </div>
                     </div>
 
@@ -124,23 +164,26 @@
                     </div>
 
                     <div class="form-group" id="ollama-host-group" style="display: none;">
-                        <label for="ollama-host-input">Ollama Server Host</label>
+                        <label for="ollama-host-input">Ollama Server URL</label>
                         <div class="input-with-btn">
                             <input type="text" id="ollama-host-input" value="http://localhost:11434" onchange="fetchModels()">
-                            <button class="btn btn-secondary" onclick="fetchModels()" type="button">Fetch Models</button>
+                            <button class="btn btn-secondary" onclick="fetchModels()" type="button">Load models</button>
                         </div>
-                        <small style="color: var(--text-secondary); display: block; margin-top: 4px;">Make sure Ollama is running: <code>ollama serve</code></small>
+                        <small class="form-hint">Make sure Ollama is running locally: <code>ollama serve</code></small>
                     </div>
 
                     <div class="form-group" id="opencode-host-group" style="display: none;">
-                        <label for="opencode-host-input">OpenCode Server Host</label>
+                        <label for="opencode-host-input">OpenCode Server URL</label>
                         <input type="text" id="opencode-host-input" value="http://127.0.0.1:4096">
-                        <small style="color: var(--text-secondary); display: block; margin-top: 4px;">Run <code>opencode serve</code> first to start the API server</small>
+                        <small class="form-hint">Start the OpenCode API first with <code>opencode serve</code></small>
                     </div>
 
                     <div class="action-row">
                         <button class="btn btn-secondary" onclick="goToStep(1)">Back</button>
-                        <button class="btn btn-primary" onclick="validateLLMConfig()">Configure Backend &nbsp; →</button>
+                        <button class="btn btn-primary" onclick="validateLLMConfig()">
+                            Continue
+                            <svg class="btn-chev" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 10h10m0 0l-4-4m4 4l-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </button>
                     </div>
                 </div>
             </section>
@@ -148,12 +191,13 @@
             <!-- STEP 3: REPOSITORY INPUT & INGESTION -->
             <section class="wizard-panel" id="panel-3">
                 <div class="ingest-wrapper">
-                    <h2>Ingest Codebase Repository</h2>
-                    <p class="panel-desc">Provide a GitHub repository link or a local folder path for the agents to analyze.</p>
+                    <h2>Point us at a repo</h2>
+                    <p class="panel-desc">Paste a public GitHub URL or a local folder path. We'll scan the file tree, config, and source code to understand your project.</p>
 
                     <div class="form-group">
-                        <label for="repo-path-input">Repository Link / Path</label>
-                        <input type="text" id="repo-path-input" placeholder="https://github.com/user/project  OR  local/directory/path" onkeydown="if(event.key==='Enter'){runAnalysis()}">
+                        <label for="repo-path-input">Repository URL or local path</label>
+                        <input type="text" id="repo-path-input" placeholder="https://github.com/user/project  or  /path/to/repo" onkeydown="if(event.key==='Enter'){runAnalysis()}">
+                        <small class="form-hint">Tip: any public GitHub URL works, e.g. <code>https://github.com/facebook/react</code></small>
                     </div>
 
                     <!-- Loader (Hidden by default) -->
@@ -165,7 +209,10 @@
 
                     <div class="action-row" id="ingest-actions">
                         <button class="btn btn-secondary" onclick="goToStep(2)">Back</button>
-                        <button class="btn btn-primary" onclick="runAnalysis()">Analyze Codebase &nbsp; →</button>
+                        <button class="btn btn-primary" onclick="runAnalysis()" id="analyze-btn">
+                            Analyze
+                            <svg class="btn-chev" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 10h10m0 0l-4-4m4 4l-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </button>
                     </div>
                 </div>
             </section>
@@ -179,28 +226,31 @@
                 </div>
 
                 <div class="dashboard-wrapper">
-                    <h2>Diagnostic Analysis Dashboard</h2>
-                    <p class="panel-desc">Here is the comparison rating computed by our Analyzer Agent.</p>
+                    <h2>Here's what we found</h2>
+                    <p class="panel-desc">A snapshot of your project's docs, code signals, and the gaps we'll close in the next step.</p>
 
                     <div class="score-card-row">
                         <!-- Score circle -->
                         <div class="score-gauge-box">
                             <div class="score-circle">
                                 <span class="score-value" id="score-text">0</span>
-                                <span class="score-label">Score</span>
+                                <span class="score-label">/ 100</span>
                             </div>
-                            <h3>README Health Index</h3>
+                            <h3>Docs Health Score</h3>
                             <span class="score-status good">—</span>
+                            <button class="gaps-pill" id="gaps-pill" type="button" onclick="document.getElementById('improvements-section').scrollIntoView({behavior:'smooth', block:'start'})">
+                                <span id="gaps-pill-count">0</span> gaps found
+                            </button>
                         </div>
                         <!-- Persona summary -->
                         <div class="summary-box">
-                            <div style="margin-bottom: 1rem; display: flex; gap: 0.75rem; align-items: center;">
+                            <div class="badges-row">
                                 <span class="badge" id="dashboard-project-type" style="background: var(--accent-primary); color: white; padding: 0.35rem 0.7rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase;">—</span>
                                 <span class="badge" id="dashboard-project-maturity" style="background: var(--accent-success); color: white; padding: 0.35rem 0.7rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase;">—</span>
                             </div>
-                            <h4>Project Persona Summary</h4>
+                            <h4>What this project is</h4>
                             <p id="dashboard-persona">Analyzing project type...</p>
-                            
+
                             <h4 style="margin-top: 1rem;">Detected Tech Stack</h4>
                             <div class="tech-pill-container" id="dashboard-tech-stack"></div>
                         </div>
@@ -208,22 +258,25 @@
 
                     <!-- Documentation Drift Status -->
                     <div class="drift-box" id="dashboard-drift-box" style="display: none; margin-bottom: 2rem;">
-                        <h3>Documentation Drift Status</h3>
-                        <p class="box-sub">Checks if code components, commands, or keys are documented in the current README.</p>
+                        <h3>Documentation Drift</h3>
+                        <p class="box-sub">Cross-checks your code (commands, env vars, components) against what the current README mentions.</p>
                         <div class="drift-content" id="dashboard-drift-content"></div>
                     </div>
 
                     <!-- Improvements Table -->
-                    <div class="improvements-box">
-                        <h3>Identified Gaps & Gaps Table</h3>
+                    <div class="improvements-box" id="improvements-section">
+                        <div class="section-head">
+                            <h3>Identified Gaps</h3>
+                            <p class="box-sub">Each row is something the README is missing. The Writer will close as many as possible in the next step.</p>
+                        </div>
                         <div class="table-container">
                             <table class="improvements-table">
                                 <thead>
                                     <tr>
-                                        <th style="width: 80px;">ID</th>
-                                        <th style="width: 150px;">Category</th>
-                                        <th>Issue / Suggestion</th>
-                                        <th>Details</th>
+                                        <th style="width: 60px;">#</th>
+                                        <th style="width: 140px;">Category</th>
+                                        <th>Title</th>
+                                        <th>Description</th>
                                     </tr>
                                 </thead>
                                 <tbody id="improvements-tbody">
@@ -236,7 +289,8 @@
                     <div class="action-row" id="dashboard-actions">
                         <button class="btn btn-secondary" onclick="goToStep(3)">Back</button>
                         <button class="btn btn-primary btn-large btn-glow" onclick="loadDesignBrief()">
-                            Review Design Brief &nbsp; →
+                            Customize &amp; Generate
+                            <svg class="btn-chev" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 10h10m0 0l-4-4m4 4l-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                         </button>
                     </div>
                 </div>
@@ -251,31 +305,27 @@
                 </div>
 
                 <div class="brief-wrapper">
-                    <h2>Design Brief Review</h2>
-                    <p class="panel-desc">Inspect repository evidence, modify intent, and finalize your documentation plan before generating.</p>
+                    <h2>Customize your README</h2>
+                    <p class="panel-desc">Tweak the style, sections, and language before we generate. Defaults are based on what we detected about your project.</p>
 
                     <div class="brief-grid">
                         <!-- Evidence and Classification (Left Column) -->
                         <div class="brief-column">
                             <div class="brief-card">
-                                <h3>Repository Classification</h3>
+                                <h3>What we detected <button class="link-btn" type="button" onclick="toggleEvidence()">View evidence</button></h3>
                                 <div class="brief-meta-row">
-                                    <div class="meta-label">Primary Intent:</div>
+                                    <div class="meta-label">Project type:</div>
                                     <div class="meta-val" id="brief-primary-intent">—</div>
                                 </div>
                                 <div class="brief-meta-row">
-                                    <div class="meta-label">Delivery Surfaces:</div>
+                                    <div class="meta-label">Surfaces:</div>
                                     <div class="meta-val" id="brief-delivery-surfaces">—</div>
                                 </div>
                                 <div class="brief-meta-row">
-                                    <div class="meta-label">Confidence Score:</div>
+                                    <div class="meta-label">Confidence:</div>
                                     <div class="meta-val" id="brief-confidence">—</div>
                                 </div>
-                            </div>
-
-                            <div class="brief-card">
-                                <h3>Inspect Signals & Evidence</h3>
-                                <div class="evidence-list" id="brief-evidence-container">
+                                <div class="evidence-list" id="brief-evidence-container" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--card-border);">
                                     <!-- Rendered dynamically -->
                                 </div>
                             </div>
@@ -284,64 +334,62 @@
                         <!-- Layout & Asset Strategy (Right Column) -->
                         <div class="brief-column">
                             <div class="brief-card">
-                                <h3>Proposed Sections</h3>
-                                <p class="box-sub">Choose which document blocks to generate.</p>
+                                <h3>Sections to include</h3>
+                                <p class="box-sub">Pre-checked based on your project type. Uncheck anything you don't want.</p>
                                 <div class="checkbox-grid" id="brief-sections-container">
                                     <!-- Rendered dynamically -->
                                 </div>
                             </div>
 
                             <div class="brief-card">
-                                <h3>Visual Asset Strategy</h3>
-                                <p class="box-sub">Select design packs optimized for this project category.</p>
+                                <h3>Visual style</h3>
+                                <p class="box-sub">Auto-selected from your project type. Pick a different one if you have a different vibe in mind.</p>
                                 <div class="strategy-selector">
                                     <select id="brief-visual-pack" onchange="handleVisualPackChange()">
-                                        <option value="ui_app">UI Application: Storyboard & Interface Layout</option>
-                                        <option value="api">Backend API: Request-Response Flow</option>
-                                        <option value="package">Package / SDK: Import & Usage Motif</option>
-                                        <option value="data">Data / Research: Relational / Data Pipeline</option>
-                                        <option value="minimal">Minimal: Typography-First, No SVGs</option>
+                                        <option value="ui_app">UI Application: storyboard &amp; interface layout</option>
+                                        <option value="api">Backend API: request-response flow</option>
+                                        <option value="package">Package / SDK: import &amp; usage motif</option>
+                                        <option value="data">Data / Research: relational pipeline</option>
+                                        <option value="minimal">Minimal: typography-only, no SVGs</option>
                                     </select>
                                 </div>
 
-                                 <div class="form-group" style="margin-top: 1rem;">
-                                     <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-secondary); cursor: pointer;">
-                                         <input type="checkbox" id="brief-no-external-assets" style="margin: 0;"> Disable external simpleicon CDN (Self-contained mode)
+                                 <div class="form-group form-group-tight">
+                                     <label class="checkbox-label">
+                                         <input type="checkbox" id="brief-no-external-assets"> Self-contained mode (no external icon CDN)
                                      </label>
                                  </div>
-                                 <div class="form-group" style="margin-top: 0.5rem;">
-                                     <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-secondary); cursor: pointer;">
-                                         <input type="checkbox" id="brief-include-header-banner" checked style="margin: 0;"> Include Brand Header Banner Image
+                                 <div class="form-group form-group-tight">
+                                     <label class="checkbox-label">
+                                         <input type="checkbox" id="brief-include-header-banner" checked> Include header banner image
                                      </label>
                                  </div>
                              </div>
 
-                            <div class="brief-card" style="margin-top: 1rem;">
-                                <h3>README Style</h3>
-                                <p class="box-sub">
-                                    Modeled after top GitHub READMEs. Auto-detected from project type; you can override.
-                                </p>
+                            <div class="brief-card">
+                                <h3>README style</h3>
+                                <p class="box-sub">Modeled after top GitHub READMEs. Auto-detected from project type; override anytime.</p>
                                 <div class="form-group" style="margin-top: 0.75rem;">
-                                    <select id="brief-style-select" style="width: 100%; padding: 0.75rem; border-radius: 8px; background: var(--card-bg); border: 1px solid var(--card-border); color: var(--text-primary); font-family: inherit; font-size: 0.9rem;">
+                                    <select id="brief-style-select" class="select-input">
                                         <option value="">Auto-detect (recommended)</option>
-                                        <option value="reference">Reference — User manual (libraries, CLIs, APIs)</option>
-                                        <option value="narrative">Narrative — Story-driven (products, frameworks)</option>
-                                        <option value="tutorial">Tutorial — Learning path (tutorials, awesome-lists)</option>
-                                        <option value="showcase">Showcase — Visual product page (UI apps)</option>
-                                        <option value="minimal">Minimal — Trailer (small utilities)</option>
+                                        <option value="reference">Reference — user manual (libraries, CLIs, APIs)</option>
+                                        <option value="narrative">Narrative — story-driven (products, frameworks)</option>
+                                        <option value="tutorial">Tutorial — learning path (tutorials, awesome-lists)</option>
+                                        <option value="showcase">Showcase — visual product page (UI apps)</option>
+                                        <option value="minimal">Minimal — trailer (small utilities)</option>
                                     </select>
-                                    <div id="style-auto-info" style="margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-secondary); display: none;">
-                                        <span class="badge" style="background: var(--accent-light); color: var(--accent-primary); padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">Auto-detected</span>
+                                    <div id="style-auto-info" class="style-auto-info" style="display: none;">
+                                        <span class="badge">Auto-detected</span>
                                         <span id="style-auto-value"></span>
                                     </div>
                                 </div>
                             </div>
 
-                            <div class="brief-card" style="margin-top: 1rem;">
-                                <h3>Select Target Language</h3>
-                                <p class="box-sub">Choose the language for the forged README.md file.</p>
-                                <div class="form-group" style="margin-top: 1rem;">
-                                    <select id="lang-select" style="width: 100%; padding: 0.75rem; border-radius: 8px; background: var(--card-bg); border: 1px solid var(--card-border); color: var(--text-primary); font-family: inherit;">
+                            <div class="brief-card">
+                                <h3>Output language</h3>
+                                <p class="box-sub">We'll translate all prose. Code, commands, and file names stay in English.</p>
+                                <div class="form-group" style="margin-top: 0.75rem;">
+                                    <select id="lang-select" class="select-input">
                                         <option value="en" selected>English</option>
                                         <option value="zh-CN">Simplified Chinese (简体中文)</option>
                                         <option value="es">Spanish (Español)</option>
@@ -355,9 +403,10 @@
                     </div>
 
                     <div class="action-row" id="brief-actions">
-                        <button class="btn btn-secondary" onclick="goToStep(4)">Back to Dashboard</button>
+                        <button class="btn btn-secondary" onclick="goToStep(4)">Back</button>
                         <button class="btn btn-primary btn-large btn-glow" onclick="triggerDraftGeneration()">
-                            Generate Draft &nbsp; →
+                            Generate README
+                            <svg class="btn-chev" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 10h10m0 0l-4-4m4 4l-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                         </button>
                     </div>
                 </div>
@@ -366,8 +415,8 @@
             <!-- STEP 6: PREVIEW & EXPORT -->
             <section class="wizard-panel" id="panel-6">
                 <div class="preview-wrapper">
-                    <h2>Documentation Forged Successfully!</h2>
-                    <p class="panel-desc">Preview your compiled markdown below, compare with the original file, or copy the code.</p>
+                    <h2>Your README is ready</h2>
+                    <p class="panel-desc">Preview, compare against the original, and export. Copy the markdown or download it as a file.</p>
 
                     <div class="preview-split-box">
                         <!-- Preview Tabs (Left side) -->
@@ -428,11 +477,22 @@
                         </div>
                     </div>
 
-                    <div class="action-row export-actions">
-                        <button class="btn btn-secondary" onclick="goToStep(5)">Back to Brief</button>
-                        <button class="btn btn-secondary" onclick="regenerateDraft()">Regenerate</button>
-                        <button class="btn btn-secondary" onclick="resetApp()">Start Over</button>
-                        <button class="btn btn-primary btn-large btn-glow" onclick="copyMarkdown()">Copy Markdown</button>
+                    <div class="export-toolbar">
+                        <div class="export-group">
+                            <button class="btn btn-secondary" onclick="goToStep(5)">← Back</button>
+                            <button class="btn btn-secondary" onclick="regenerateDraft()">Regenerate</button>
+                            <button class="btn btn-secondary" onclick="resetApp()">Start over</button>
+                        </div>
+                        <div class="export-group">
+                            <button class="btn btn-secondary" onclick="downloadReadme()">
+                                <svg class="btn-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 3v10m0 0l-4-4m4 4l4-4M4 17h12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                Download README.md
+                            </button>
+                            <button class="btn btn-primary btn-large btn-glow" onclick="copyMarkdown()">
+                                <svg class="btn-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M8 3h7a1 1 0 011 1v12a1 1 0 01-1 1H8m0-14H4a1 1 0 00-1 1v12a1 1 0 001 1h4m0-14v14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                Copy to clipboard
+                            </button>
+                        </div>
                     </div>
                 </div>
             </section>

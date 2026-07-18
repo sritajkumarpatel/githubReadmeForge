@@ -553,7 +553,7 @@ function populateDashboard(score, analysis) {
         const improvements = analysis.improvements || [];
 
         if (improvements.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">✅ No improvement gaps identified. Your README is in top shape!</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">✅ No gaps identified. Your README is in great shape!</td></tr>`;
         } else {
             improvements.forEach(imp => {
                 const tr = document.createElement('tr');
@@ -566,6 +566,20 @@ function populateDashboard(score, analysis) {
                 `;
                 tbody.appendChild(tr);
             });
+        }
+    }
+
+    // Update the "X gaps found" pill next to the score
+    const gapsPill = document.getElementById('gaps-pill');
+    const gapsPillCount = document.getElementById('gaps-pill-count');
+    if (gapsPill && gapsPillCount) {
+        const count = (analysis.improvements || []).length;
+        gapsPillCount.textContent = count;
+        if (count === 0) {
+            gapsPill.textContent = 'No gaps — looking good';
+            gapsPill.classList.add('gaps-pill-clean');
+        } else {
+            gapsPill.classList.remove('gaps-pill-clean');
         }
     }
 
@@ -752,9 +766,9 @@ function triggerDraftGeneration() {
     const noExternalAssets = document.getElementById('brief-no-external-assets').checked;
     const includeHeaderBanner = document.getElementById('brief-include-header-banner').checked;
 
-    // Read style from the Brief panel selector (Step 5)
+    // Read style from the Brief panel selector (Step 5); empty = auto-detect
     const styleSelect = document.getElementById('brief-style-select');
-    const chosenStyle = styleSelect ? styleSelect.value : 'visual_rich';
+    const chosenStyle = styleSelect ? styleSelect.value : '';
 
     const briefOptions = {
         sections: selectedSections,
@@ -1157,11 +1171,41 @@ function switchOutputTab(tabId) {
 // ACTION BUTTON EXPORTS
 function copyMarkdown() {
     const rawMarkdown = document.getElementById('raw-readme-text').value;
+    if (!rawMarkdown) {
+        showNotification('No README to copy. Generate one first.', 'error');
+        return;
+    }
     navigator.clipboard.writeText(rawMarkdown).then(() => {
-        showNotification('README markdown copied to clipboard successfully!', 'success');
+        showNotification('Markdown copied to clipboard.', 'success');
     }).catch(err => {
         showNotification('Failed to copy: ' + err, 'error');
     });
+}
+
+function downloadReadme() {
+    const rawMarkdown = document.getElementById('raw-readme-text').value;
+    if (!rawMarkdown) {
+        showNotification('No README to download. Generate one first.', 'error');
+        return;
+    }
+    const blob = new Blob([rawMarkdown], { type: 'text/markdown; charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'README.md';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showNotification('README.md downloaded.', 'success');
+}
+
+// TOGGLE EVIDENCE PANEL in step 5
+function toggleEvidence() {
+    const container = document.getElementById('brief-evidence-container');
+    if (!container) return;
+    const isHidden = container.style.display === 'none' || container.style.display === '';
+    container.style.display = isHidden ? 'block' : 'none';
 }
 
 // APP RESET
@@ -1171,9 +1215,9 @@ function resetApp() {
     currentDraftId = '.readme_forge_draft';
     document.getElementById('repo-path-input').value = '';
 
-    // Reset style selector to default
+    // Reset style selector to default (empty = auto-detect)
     const styleEl = document.getElementById('brief-style-select');
-    if (styleEl) styleEl.value = 'visual_rich';
+    if (styleEl) styleEl.value = '';
 
     goToStep(1);
 }
