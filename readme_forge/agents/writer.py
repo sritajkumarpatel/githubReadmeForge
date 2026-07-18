@@ -398,7 +398,8 @@ class WriterAgent:
             "- Mermaid diagram syntax rules are absolute: use ONLY `flowchart TD` (NOT `graph TD`), node labels must be quoted strings A[\"Label\"] (NEVER unquoted A[Label] or A(Label)), and node IDs must be single alphanumeric words.\n"
             "- For the architecture section, you MUST generate a native Mermaid.js flowchart TD diagram inside a markdown code block showing the connections and data flows. Use ONLY quoted labels like A[\"Label\"] to prevent syntax errors.\n"
             "- Keep all facts strict and derived from codebase scan results; do not invent files, endpoints, or features.\n"
-            "- Preserving gratitude: If the existing README (provided in the user prompt) has any acknowledgements, thanks, or 'Thank You' sections at the bottom, carry them forward to the end of the contributing_license section."
+            "- Preserving gratitude: If the existing README (provided in the user prompt) has any acknowledgements, thanks, or 'Thank You' sections at the bottom, carry them forward to the end of the contributing_license section.\n"
+            "- If a 'Check Out the Demo' section is supplied in the user prompt (when the project is visual but has no real assets), include it VERBATIM. Do not paraphrase or reformat it — it is a curated placeholder for the project owner to fill in later."
         )
 
         # Differentiation and visual asset context
@@ -492,12 +493,34 @@ class WriterAgent:
         if scan_results.get("existing_readme"):
             user_prompt += f"\nHere is the existing README content for reference:\n{scan_results.get('existing_readme')}\n"
 
+        # Demo placeholder: tell the LLM to include a "Check Out the Demo" section
+        # when the project is visual but has no real assets to embed.
+        demo_placeholder_text = ""
+        if self._should_include_demo_placeholder(analysis):
+            demo_placeholder_text = self._get_demo_placeholder_section()
+            user_prompt += (
+                "\nVISUAL PROJECT — NO REAL ASSETS DETECTED:\n"
+                "The project appears to have a visual interface but no real images, GIFs, or "
+                "videos are available in the repository. Include a 'Check Out the Demo' section "
+                "in the README using the exact text below verbatim. This reserves the spot for "
+                "the project owner to drop in real visuals later.\n\n"
+                "=== DEMO SECTION TO INSERT ===\n"
+                f"{demo_placeholder_text}\n"
+                "=== END DEMO SECTION ===\n"
+            )
+
         readme_markdown = self.llm_client.generate(system_prompt, user_prompt)
 
         # Keep Mermaid blocks natively as requested by user. We no longer replace them with SVGs.
 
         if include_header_banner and visual_intro and "assets/readme/brand-light.svg" not in readme_markdown:
-            return f"{visual_intro}\n\n{readme_markdown.lstrip()}"
+            readme_markdown = f"{visual_intro}\n\n{readme_markdown.lstrip()}"
+
+        # If the LLM didn't include the demo section verbatim (some models paraphrase),
+        # append it ourselves so the placeholder is always present.
+        if demo_placeholder_text and "Check Out the Demo" not in readme_markdown:
+            readme_markdown = readme_markdown.rstrip() + "\n\n" + demo_placeholder_text
+
         return readme_markdown
 
     def _format_connections(self, connections):
@@ -632,3 +655,50 @@ class WriterAgent:
             ),
         }
         return guardrails.get(style, guardrails["narrative"])
+
+    def _should_include_demo_placeholder(self, analysis: dict) -> bool:
+        """Decide whether the README should include a 'Check Out the Demo' placeholder.
+
+        Returns True only when:
+          - The project is a visual project (has_visual_interface OR style is showcase/narrative)
+          - AND there are NO real image/video assets in the repo
+        """
+        if not analysis:
+            return False
+        has_visual = bool(analysis.get("has_visual_interface"))
+        recommended = analysis.get("recommended_style", "")
+        style_visual = recommended in {"showcase", "narrative", "demo"}
+        if not (has_visual or style_visual):
+            return False
+        # If the project already has real assets, do not add a placeholder.
+        hero_assets = analysis.get("hero_assets") or []
+        ui_assets = analysis.get("ui_assets") or []
+        if hero_assets or ui_assets:
+            return False
+        return True
+
+    def _get_demo_placeholder_section(self) -> str:
+        """Return a friendly 'Check Out the Demo' placeholder section.
+
+        This section reserves a spot in the README for the project owner to drop
+        in a screenshot, GIF, or video link. It is honest about the gap, gives
+        clear instructions, and is visually distinctive so a maintainer notices it.
+        """
+        return (
+            "## 🎬 Check Out the Demo\n\n"
+            "> 📸 **A live demo is coming soon!**\n>\n"
+            "> This space will soon be filled with screenshots, GIFs, or a video walkthrough.\n"
+            "> Thank you for waiting while we put the finishing touches on it.\n>\n"
+            "> **Want to help?** Drop a screenshot, a quick GIF, or a link to a Loom/YouTube "
+            "video right under this callout, and open a PR — the maintainers (and visitors) "
+            "will thank you for it.\n\n"
+            "**How to contribute the demo:**\n"
+            "\n"
+            "1. Capture a short screen recording or take a few screenshots of the project in action.\n"
+            "2. Save the file under `assets/` or `docs/` in the repository (e.g. `assets/demo.gif`).\n"
+            "3. Replace the callout above with one of the following:\n"
+            "    - Image: `![Demo screenshot](assets/demo.png)`\n"
+            "    - GIF: `![Demo](assets/demo.gif)`\n"
+            "    - Video: `[▶ Watch the demo](https://your-video-link-here)`\n"
+            "4. Open a pull request.\n"
+        )
