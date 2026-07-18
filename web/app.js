@@ -92,7 +92,28 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (!savedProvider) {
         handleProviderChange();
     }
+
+    // Wire up the repo path input to enable/disable the Analyze button
+    const repoInput = document.getElementById('repo-path-input');
+    if (repoInput) {
+        const updateAnalyzeState = () => _updateAnalyzeButtonState();
+        repoInput.addEventListener('input', updateAnalyzeState);
+        // Initial state
+        _updateAnalyzeButtonState();
+    }
 });
+
+// ENABLE / DISABLE the Analyze button based on whether the user has typed a path
+function _updateAnalyzeButtonState() {
+    const repoInput = document.getElementById('repo-path-input');
+    const analyzeBtn = document.querySelector('button[onclick="runAnalysis()"]');
+    if (!repoInput || !analyzeBtn) return;
+    const hasValue = (repoInput.value || '').trim().length > 0;
+    analyzeBtn.disabled = !hasValue;
+    analyzeBtn.style.opacity = hasValue ? '1' : '0.5';
+    analyzeBtn.style.cursor = hasValue ? 'pointer' : 'not-allowed';
+    analyzeBtn.title = hasValue ? '' : 'Please enter a repository link or local path first';
+}
 
 // STEP NAVIGATION
 function goToStep(step) {
@@ -339,7 +360,16 @@ function validateLLMConfig() {
 async function runAnalysis() {
     const repoPath = document.getElementById('repo-path-input').value.trim();
     if (!repoPath) {
-        showNotification('Please specify a repository link or local directory path.', 'error');
+        showNotification('Please enter a GitHub URL or a local directory path before analyzing.', 'error');
+        const input = document.getElementById('repo-path-input');
+        if (input) input.focus();
+        return;
+    }
+    // Reject trivial placeholders like a single dot
+    if (repoPath === '.' || repoPath === '/' || repoPath === './' || repoPath === '../') {
+        showNotification('Please enter a real GitHub URL or a specific directory path (not just "." or "/").', 'error');
+        const input = document.getElementById('repo-path-input');
+        if (input) input.focus();
         return;
     }
 
@@ -552,7 +582,10 @@ async function checkDocumentationDrift() {
     container.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.9rem;"><span class="spinner-small"></span> Checking documentation drift...</div>';
 
     try {
-        const repoPath = document.getElementById('repo-path-input').value.trim() || '.';
+        // Use the path from the saved scan context if available, fall back to input
+        const repoPath = (scanContext && scanContext.path)
+            ? scanContext.path
+            : (document.getElementById('repo-path-input')?.value.trim() || '');
         const response = await fetch('/api/drift', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1136,7 +1169,7 @@ function resetApp() {
     scanContext = null;
     analysisContext = null;
     currentDraftId = '.readme_forge_draft';
-    document.getElementById('repo-path-input').value = '.';
+    document.getElementById('repo-path-input').value = '';
 
     // Reset style selector to default
     const styleEl = document.getElementById('brief-style-select');
