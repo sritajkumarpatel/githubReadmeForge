@@ -26,34 +26,26 @@ function _saveProviderPrefs() {
     } catch (e) { /* private browsing — ignore */ }
 }
 
-function _restoreProviderPrefs() {
+async function _restoreProviderPrefs() {
     try {
         const provider = localStorage.getItem(LS_PROVIDER);
-        const model    = localStorage.getItem(LS_MODEL);
+        const savedModel = localStorage.getItem(LS_MODEL);
         const host     = localStorage.getItem(LS_HOST);
+
+        // Restore host first so fetchModels() (triggered by provider change) uses the right URL
+        if (host) {
+            const hi = document.getElementById('ollama-host-input');
+            if (hi) hi.value = host;
+        }
 
         if (provider) {
             const sel = document.getElementById('provider-select');
             if (sel) {
                 sel.value = provider;
-                handleProviderChange();
+                // Temporarily store the model to restore on window._pendingModelRestore
+                window._pendingModelRestore = savedModel;
+                await handleProviderChange();
             }
-        }
-        if (model) {
-            const ms = document.getElementById('model-select');
-            if (ms) {
-                if (!ms.querySelector(`option[value="${model}"]`)) {
-                    const opt = document.createElement('option');
-                    opt.value = model;
-                    opt.textContent = model;
-                    ms.appendChild(opt);
-                }
-                ms.value = model;
-            }
-        }
-        if (host) {
-            const hi = document.getElementById('ollama-host-input');
-            if (hi) hi.value = host;
         }
     } catch (e) { /* ignore */ }
 }
@@ -90,8 +82,17 @@ mermaid.initialize({
     }
 });
 
-// Restore saved provider prefs and init provider UI once DOM is ready
-// (deferred to the single DOMContentLoaded handler at the bottom of this file)
+// On page load: restore saved prefs first (so host URL is in place),
+// then init the provider UI. This prevents fetchModels() from hitting
+// the wrong Ollama host on first load.
+window.addEventListener('DOMContentLoaded', async () => {
+    await _restoreProviderPrefs();
+    // If no saved provider, initialise a clean provider UI state
+    const savedProvider = localStorage.getItem(LS_PROVIDER);
+    if (!savedProvider) {
+        handleProviderChange();
+    }
+});
 
 // STEP NAVIGATION
 function goToStep(step) {
@@ -124,7 +125,7 @@ function goToStep(step) {
 }
 
 // HANDLE PROVIDER SELECTION INPUTS
-function handleProviderChange() {
+async function handleProviderChange() {
     const provider = document.getElementById('provider-select').value;
     const apiKeyGroup = document.getElementById('api-key-group');
     const modelGroup = document.getElementById('model-group');
@@ -147,15 +148,21 @@ function handleProviderChange() {
     if (provider === 'ollama') {
         modelGroup.style.display = 'flex';
         ollamaGroup.style.display = 'flex';
+        return await fetchModels();
     } else if (provider === 'opencode') {
         opencodeGroup.style.display = 'flex';
         modelGroup.style.display = 'flex';
-        apiKeyGroup.style.display = 'flex'; // API key needed/supported for OpenCode
-    } else if (provider !== 'mock') {
         apiKeyGroup.style.display = 'flex';
+        return await fetchModels();
+    } else if (provider === 'mock') {
+        // Mock needs no key and has no real model list — skip fetch
+        modelGroup.style.display = 'none';
+    } else if (provider) {
+        // Cloud providers: show API key input and auto-fetch to check env keys
+        apiKeyGroup.style.display = 'flex';
+        modelGroup.style.display = 'flex';
+        return await fetchModels();
     }
-
-    fetchModels();
 }
 
 async function fetchModels() {
@@ -174,21 +181,34 @@ async function fetchModels() {
         baseUrl = document.getElementById('opencode-host-input')?.value.trim() || 'http://127.0.0.1:4096';
     }
 
+    // Cloud providers: don't fetch if no key has been entered yet
+    if (provider !== 'ollama' && provider !== 'opencode' && provider !== 'mock' && !apiKey) {
+        modelSelect.innerHTML = '<option value="">Enter API key to load models</option>';
+        return;
+    }
+
     modelGroup.style.display = 'flex';
     modelLoading.style.display = 'inline-block';
     modelSelect.innerHTML = '<option value="">Loading...</option>';
+
+    // AbortController gives us a hard timeout so a dead Ollama server
+    // doesn't leave the spinner running forever.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     try {
         const response = await fetch('/api/models', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ provider, api_key: apiKey, base_url: baseUrl })
+            body: JSON.stringify({ provider, api_key: apiKey, base_url: baseUrl }),
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
         const data = await response.json();
 
         modelLoading.style.display = 'none';
 
-        if (data.success && data.models.length > 0) {
+        if (data.success && data.models && data.models.length > 0) {
             modelSelect.innerHTML = '<option value="">Select a model...</option>';
             data.models.forEach(model => {
                 const option = document.createElement('option');
@@ -196,41 +216,81 @@ async function fetchModels() {
                 option.textContent = model;
                 modelSelect.appendChild(option);
             });
+            // Restore previously saved model selection if available
+            if (window._pendingModelRestore) {
+                const saved = window._pendingModelRestore;
+                if (modelSelect.querySelector(`option[value="${saved}"]`)) {
+                    modelSelect.value = saved;
+                }
+                window._pendingModelRestore = null;
+            }
             // Succeeded with empty input key -> server env key is available
             if (!apiKey && apiKeyInput) {
                 apiKeyInput.value = '••••••••';
                 apiKeyInput.readOnly = true;
                 apiKeyInput.style.opacity = '0.7';
                 apiKeyInput.title = 'Using API Key from environment. Click to change.';
-                
-                // Clear and make editable on click
                 apiKeyInput.onclick = function() {
                     if (apiKeyInput.readOnly) {
                         apiKeyInput.value = '';
                         apiKeyInput.readOnly = false;
                         apiKeyInput.style.opacity = '1.0';
                         apiKeyInput.placeholder = 'Enter your provider API Key';
-                        apiKeyInput.onclick = null; // Remove handler
+                        apiKeyInput.onclick = null;
                     }
                 };
             }
+        } else if (data.models && data.models.length === 0 && provider === 'ollama') {
+            // Ollama is reachable but has no models pulled
+            modelSelect.innerHTML = '<option value="">No local models found</option>';
+            showNotification(
+                'Ollama is running but has no models pulled. Run e.g. "ollama pull llama3.2" in your terminal, then click Fetch Models.',
+                'info'
+            );
         } else if (data.error) {
-            modelSelect.innerHTML = '<option value="">API Key Required</option>';
-            if (apiKeyInput) {
-                apiKeyInput.value = '';
-                apiKeyInput.readOnly = false;
-                apiKeyInput.style.opacity = '1.0';
-                apiKeyInput.placeholder = 'Enter your provider API Key';
-            }
-            if (apiKey && apiKey !== '••••••••') {
-                showNotification('Failed to fetch models: ' + data.error, 'error');
+            if (provider === 'ollama') {
+                modelSelect.innerHTML = '<option value="">Ollama unreachable</option>';
+                showNotification(
+                    `Could not reach Ollama at ${baseUrl}. Make sure Ollama is running ("ollama serve") and try again.`,
+                    'error'
+                );
+            } else if (provider === 'opencode') {
+                modelSelect.innerHTML = '<option value="">OpenCode unreachable</option>';
+                showNotification(
+                    `Could not reach OpenCode at ${baseUrl}. Make sure OpenCode is running and try again.`,
+                    'error'
+                );
+            } else {
+                modelSelect.innerHTML = '<option value="">API Key Required</option>';
+                if (apiKeyInput) {
+                    apiKeyInput.value = '';
+                    apiKeyInput.readOnly = false;
+                    apiKeyInput.style.opacity = '1.0';
+                    apiKeyInput.placeholder = 'Enter your provider API Key';
+                }
+                if (apiKey && apiKey !== '••••••••') {
+                    showNotification('Failed to fetch models: ' + data.error, 'error');
+                }
             }
         } else {
             modelSelect.innerHTML = '<option value="">No models found</option>';
         }
     } catch (err) {
+        clearTimeout(timeoutId);
         modelLoading.style.display = 'none';
-        modelSelect.innerHTML = '<option value="">Error loading models</option>';
+        if (err.name === 'AbortError') {
+            modelSelect.innerHTML = '<option value="">Server not reachable</option>';
+            if (provider === 'ollama') {
+                showNotification(
+                    `Ollama server timed out at ${baseUrl}. Make sure Ollama is running ("ollama serve") and the host URL is correct.`,
+                    'error'
+                );
+            } else {
+                showNotification('Model fetch timed out. Check your connection.', 'error');
+            }
+        } else {
+            modelSelect.innerHTML = '<option value="">Error loading models</option>';
+        }
     }
 }
 
@@ -240,7 +300,8 @@ function validateLLMConfig() {
     const apiKeyInput = document.getElementById('api-key-input');
     const apiKey = apiKeyInput ? apiKeyInput.value.trim() : '';
     const modelSelect = document.getElementById('model-select');
-    const model = provider === 'ollama' ? 'llama3' : (provider === 'opencode' ? 'claude-3-5-sonnet-20241022' : (modelSelect.value || ''));
+    // Always read the actual dropdown value — never hardcode a model name
+    const model = modelSelect.value || '';
     const ollamaHost = document.getElementById('ollama-host-input').value.trim();
     const opencodeHost = document.getElementById('opencode-host-input').value.trim();
 
@@ -250,8 +311,15 @@ function validateLLMConfig() {
         return;
     }
 
-    if (!model && provider !== 'ollama' && provider !== 'opencode') {
-        showNotification('Please select or enter a model.', 'error');
+    // For Ollama/OpenCode, a model must be selected from the fetched list
+    if (!model && provider !== 'mock') {
+        if (provider === 'ollama') {
+            showNotification('Please select a local Ollama model. Use "Fetch Models" to load your pulled models.', 'error');
+        } else if (provider === 'opencode') {
+            showNotification('Please select an OpenCode model. Use "Fetch Models" to load available models.', 'error');
+        } else {
+            showNotification('Please select a model.', 'error');
+        }
         return;
     }
 
@@ -1042,12 +1110,6 @@ function resetApp() {
 
     goToStep(1);
 }
-
-// On page load
-window.addEventListener('DOMContentLoaded', () => {
-    handleProviderChange();
-    _restoreProviderPrefs();
-});
 
 // CUSTOM MINIMALIST TOAST NOTIFICATION
 function showNotification(message, type = 'info') {

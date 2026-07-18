@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import urllib.parse
 from html import escape
 from pathlib import Path
@@ -97,7 +98,6 @@ def select_component_flow(connections: Any, max_nodes: int = 5) -> list[dict[str
 
     return path
 
-import re
 
 def split_node_name(name: str) -> list[str]:
     """Split camelCase, PascalCase, or snake_case names into up to 3 readable lines."""

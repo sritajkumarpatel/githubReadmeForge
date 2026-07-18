@@ -125,7 +125,11 @@
 
                     <div class="form-group" id="ollama-host-group" style="display: none;">
                         <label for="ollama-host-input">Ollama Server Host</label>
-                        <input type="text" id="ollama-host-input" value="http://localhost:11434">
+                        <div class="input-with-btn">
+                            <input type="text" id="ollama-host-input" value="http://localhost:11434" onchange="fetchModels()">
+                            <button class="btn btn-secondary" onclick="fetchModels()" type="button">Fetch Models</button>
+                        </div>
+                        <small style="color: var(--text-secondary); display: block; margin-top: 4px;">Make sure Ollama is running: <code>ollama serve</code></small>
                     </div>
 
                     <div class="form-group" id="opencode-host-group" style="display: none;">

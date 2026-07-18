@@ -3,6 +3,8 @@ import sys
 import json
 import argparse
 import urllib.parse
+import shutil
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
@@ -132,7 +134,16 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         api_key = req_body.get("api_key")
         base_url = req_body.get("base_url")
 
-        if not api_key and provider not in ("ollama", "opencode", "mock"):
+        if api_key == "••••••••":
+            api_key = None
+
+        # Check if we have an API key or if the provider doesn't require one (or has env key)
+        effective_key = api_key
+        if not effective_key:
+            dummy_client = LLMClient(provider=provider, api_key=None, base_url=base_url)
+            effective_key = dummy_client.api_key
+
+        if not effective_key and provider not in ("ollama", "opencode", "mock"):
             self._send_json({"success": False, "error": "API key is required"}, 400)
             return
 
@@ -159,6 +170,9 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         model = req_body.get("model")
         api_key = req_body.get("api_key")
         base_url = req_body.get("base_url")
+
+        if api_key == "••••••••":
+            api_key = None
 
         if not target_path:
             self._send_json({"success": False, "error": "Repository path or URL is required."}, 400)
@@ -281,6 +295,9 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         readme_style = req_body.get("style", "visual_rich")
         lang = req_body.get("lang", "en")
 
+        if api_key == "••••••••":
+            api_key = None
+
         if not scan_results or not analysis:
             self._send_json({"success": False, "error": "Analysis context is missing."}, 400)
             return
@@ -316,8 +333,11 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         try:
             llm_client = LLMClient(provider=provider, model=model, api_key=api_key, base_url=base_url)
             writer = WriterAgent(llm_client)
-            
-            # Determine output_dir (always save drafts into temporary draft folder)
+
+            # Determine output_dir (always save drafts into a short-lived draft folder).
+            # The draft is kept just long enough to serve any static assets (SVGs) the
+            # web UI may request after generation. A cleanup pass on startup removes
+            # leftover drafts from previous runs.
             target_path = scan_results.get("path", ".")
             import uuid
             draft_id = f".readme_forge_draft_{uuid.uuid4().hex[:8]}"
@@ -370,6 +390,13 @@ class APIRequestHandler(BaseHTTPRequestHandler):
                     "error": "The repository is too large for the selected model's context window.",
                     "hint": "Try a model with a larger context window, or use a smaller repository."
                 }, 500)
+            elif "timed out after" in error_msg.lower() or "could not connect" in error_msg.lower():
+                self._send_json({
+                    "success": False,
+                    "error_type": "provider_error",
+                    "error": error_msg,
+                    "hint": "Check that your LLM provider is reachable and try again."
+                }, 504)
             else:
                 self._send_json({
                     "success": False,
@@ -378,7 +405,18 @@ class APIRequestHandler(BaseHTTPRequestHandler):
                     "hint": "An unexpected error occurred during README generation."
                 }, 500)
         finally:
-            pass
+            # Clean up any draft directories that are older than 1 hour.
+            # The current draft is kept so the web UI can fetch SVG assets right
+            # after generation. Stale drafts from previous sessions are removed.
+            import glob
+            now = time.time()
+            for old_draft in glob.glob(str(project_root / ".readme_forge_draft_*")):
+                try:
+                    age = now - Path(old_draft).stat().st_mtime
+                    if age > 3600:  # 1 hour
+                        shutil.rmtree(old_draft, ignore_errors=True)
+                except Exception:
+                    pass
 
     def _send_json(self, data, status_code=200):
         self.send_response(status_code)
