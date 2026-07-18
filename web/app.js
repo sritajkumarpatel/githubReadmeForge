@@ -433,6 +433,30 @@ function populateDashboard(score, analysis) {
     if (projectTypeBadge) projectTypeBadge.textContent = analysis.project_type || 'Unknown';
     if (maturityBadge) maturityBadge.textContent = analysis.project_maturity || 'Unknown';
 
+    // Display the auto-detected README style so the user can see what was chosen
+    const styleAutoInfo = document.getElementById('style-auto-info');
+    const styleAutoValue = document.getElementById('style-auto-value');
+    const recommended = analysis.recommended_style;
+    if (recommended && styleAutoInfo && styleAutoValue) {
+        const styleDescriptions = {
+            reference: 'Reference — User manual (libraries, CLIs, APIs)',
+            narrative: 'Narrative — Story-driven (products, frameworks)',
+            tutorial: 'Tutorial — Learning path (tutorials, awesome-lists)',
+            showcase: 'Showcase — Visual product page (UI apps)',
+            minimal: 'Minimal — Trailer (small utilities)',
+        };
+        styleAutoValue.textContent = ' ' + (styleDescriptions[recommended] || recommended);
+        // Only show the auto-detected badge when the user has selected "Auto-detect"
+        const styleSelect = document.getElementById('brief-style-select');
+        if (styleSelect && (styleSelect.value === '' || styleSelect.value === recommended)) {
+            styleAutoInfo.style.display = 'block';
+        } else {
+            styleAutoInfo.style.display = 'none';
+        }
+    } else if (styleAutoInfo) {
+        styleAutoInfo.style.display = 'none';
+    }
+
     // 1. Score gauge — animate counter and set conic gradient
     const scoreText = document.getElementById('score-text');
     const scoreCircle = document.querySelector('.score-circle');
@@ -721,10 +745,20 @@ async function startGeneration(isInstant, compiledAnswers = '', briefOptions = n
     const loaderStatus = document.getElementById(isBrief ? 'brief-loader-status' : 'dashboard-loader-status');
     const actionsBlock = document.getElementById(isBrief ? 'brief-actions' : 'dashboard-actions');
 
-    // Read style: prefer briefOptions.style, then brief-style-select, then fallback
-    const styleToUse = (briefOptions && briefOptions.style)
-        ? briefOptions.style
-        : (document.getElementById('brief-style-select')?.value || 'visual_rich');
+    // Read style: prefer briefOptions.style, then brief-style-select, then analyzer-recommended, then narrative
+    let styleToUse;
+    if (briefOptions && briefOptions.style) {
+        styleToUse = briefOptions.style;
+    } else {
+        const styleSelectValue = document.getElementById('brief-style-select')?.value;
+        if (styleSelectValue) {
+            styleToUse = styleSelectValue;
+        } else if (analysisContext && analysisContext.recommended_style) {
+            styleToUse = analysisContext.recommended_style;
+        } else {
+            styleToUse = 'narrative';
+        }
+    }
 
     // Display loader overlay
     if (loader) loader.style.display = 'flex';

@@ -29,6 +29,25 @@ INTENT_VISUAL_STRATEGY: dict[str, str] = {
     "unknown":     "minimal",
 }
 
+# README style categories, modeled after patterns observed in 30+ top GitHub READMEs.
+# Each style is a documented convention (Reference = Axios/ripgrep; Narrative =
+# Supabase/AppFlowy; Tutorial = build-your-own-x; Showcase = AppFlowy/Phaser;
+# Minimal = jq/Three.js). User may override the auto-detected default.
+README_STYLES = {"reference", "narrative", "tutorial", "showcase", "minimal"}
+
+# Auto-detect default README style from project type.
+INTENT_README_STYLE: dict[str, str] = {
+    "library":     "reference",   # Axios, FastAPI, ripgrep pattern
+    "cli":         "reference",   # ripgrep, fd, bat, httpie pattern
+    "api":         "reference",   # FastAPI, Express pattern
+    "application": "narrative",   # Supabase, AppFlowy, Plausible pattern
+    "demo":        "showcase",    # AppFlowy, Phaser, httpie pattern
+    "learning":    "tutorial",    # build-your-own-x, freeCodeCamp pattern
+    "poc":         "minimal",     # experimental, often small
+    "minimal":     "minimal",     # jq, Three.js pattern
+    "unknown":     "narrative",   # safest default
+}
+
 
 def _as_string_list(value: Any) -> list[str]:
     """Return a clean list of non-empty strings without inventing values."""
@@ -302,6 +321,37 @@ def normalize_analysis(raw: Any, scan_results: dict[str, Any], analysis_complete
     if project_maturity not in MATURITY_LEVELS:
         project_maturity = classification["maturity"]
 
+    # Resolve recommended README style: trust LLM only when it picks a known style;
+    # otherwise fall back to the project_type default.
+    raw_style = raw.get("recommended_style")
+    if isinstance(raw_style, str) and raw_style.lower() in README_STYLES:
+        recommended_style = raw_style.lower()
+    else:
+        recommended_style = INTENT_README_STYLE.get(project_type, "narrative")
+
+    # Hero/demo assets: trust the Reader's scan over LLM guesses.
+    raw_ui_assets = _as_string_list(raw.get("ui_assets"))
+    hero_assets = scan_results.get("hero_assets", []) or []
+    hero_asset_paths = [a["path"] for a in hero_assets if isinstance(a, dict) and a.get("path")]
+    # Combine LLM hints with the scanned assets; scan assets win because they are real files.
+    if not raw_ui_assets:
+        ui_assets = hero_asset_paths
+    else:
+        # Union, scan results first so the writer can rely on them existing
+        ui_assets = hero_asset_paths + [p for p in raw_ui_assets if p not in hero_asset_paths]
+
+    has_visual_interface = raw.get("has_visual_interface")
+    if not isinstance(has_visual_interface, bool):
+        # Default to True if any UI surface or hero asset was found
+        has_visual_interface = "ui" in classification.get("delivery_surfaces", []) or bool(hero_asset_paths)
+
+    # Differentiators must be specific; discard vague entries.
+    raw_differentiators = _as_string_list(raw.get("differentiators"))
+    differentiators = [
+        d for d in raw_differentiators
+        if not any(vague in d.lower() for vague in ("easy to use", "simple to", "powerful", "flexible", "modern"))
+    ]
+
     normalized = {
         "project_name": raw.get("project_name") if isinstance(raw.get("project_name"), str) else "Project",
         "project_type": project_type,
@@ -321,11 +371,17 @@ def normalize_analysis(raw: Any, scan_results: dict[str, Any], analysis_complete
         "cli_commands": _as_dict_list(raw.get("cli_commands")),
         "data_models": _as_dict_list(raw.get("data_models")),
         "installation_commands": _as_dict_list(raw.get("installation_commands")),
+        "installation_methods": _as_dict_list(raw.get("installation_methods")),
         "external_services": _as_string_list(raw.get("external_services")),
         "test_coverage": raw.get("test_coverage") if isinstance(raw.get("test_coverage"), dict) else {},
         "architecture_layers": _as_dict_list(raw.get("architecture_layers")),
         "improvements": _as_dict_list(raw.get("improvements")),
         "connections": _as_dict_list(raw.get("connections")),
+        "differentiators": differentiators,
+        "recommended_style": recommended_style,
+        "has_visual_interface": has_visual_interface,
+        "ui_assets": ui_assets,
+        "hero_assets": hero_assets,
         "classification": classification,
         "analysis_complete": analysis_complete,
         "context_truncated": context_truncated,

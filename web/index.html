@@ -317,14 +317,23 @@
                              </div>
 
                             <div class="brief-card" style="margin-top: 1rem;">
-                                <h3>README Style Theme</h3>
-                                <p class="box-sub">Controls the visual formatting and tone of the generated README.</p>
+                                <h3>README Style</h3>
+                                <p class="box-sub">
+                                    Modeled after top GitHub READMEs. Auto-detected from project type; you can override.
+                                </p>
                                 <div class="form-group" style="margin-top: 0.75rem;">
                                     <select id="brief-style-select" style="width: 100%; padding: 0.75rem; border-radius: 8px; background: var(--card-bg); border: 1px solid var(--card-border); color: var(--text-primary); font-family: inherit; font-size: 0.9rem;">
-                                        <option value="visual_rich" selected>Visual Rich — Badges, icons, SVG banners</option>
-                                        <option value="minimalist">Minimalist — Clean text, no heavy visuals</option>
-                                        <option value="enterprise">Enterprise — Formal, tables, compliance sections</option>
+                                        <option value="">Auto-detect (recommended)</option>
+                                        <option value="reference">Reference — User manual (libraries, CLIs, APIs)</option>
+                                        <option value="narrative">Narrative — Story-driven (products, frameworks)</option>
+                                        <option value="tutorial">Tutorial — Learning path (tutorials, awesome-lists)</option>
+                                        <option value="showcase">Showcase — Visual product page (UI apps)</option>
+                                        <option value="minimal">Minimal — Trailer (small utilities)</option>
                                     </select>
+                                    <div id="style-auto-info" style="margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-secondary); display: none;">
+                                        <span class="badge" style="background: var(--accent-light); color: var(--accent-primary); padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">Auto-detected</span>
+                                        <span id="style-auto-value"></span>
+                                    </div>
                                 </div>
                             </div>
 

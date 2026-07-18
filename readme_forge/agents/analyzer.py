@@ -101,9 +101,23 @@ class AnalyzerAgent:
             "    {\n"
             "      \"from\": \"Source component or layer\",\n"
             "      \"to\": \"Destination component or layer\",\n"
-            "      \"relationship\": \"Brief action or explanation of link\",\n"
-            "      \"layer\": \"Optional: orchestration, data, integration, ui\"\n"
+            "      \"relationship\": \"Brief action or explanation of link\"\n"
             "    }\n"
+            "  ],\n"
+            "  \"differentiators\": [\n"
+            "    \"List 3-5 CONCRETE technical choices or claims that distinguish this project from competitors. Examples: 'Zero runtime dependencies', 'TypeScript-first', 'Single static binary', 'No new syntax'. Empty array if you cannot identify concrete differentiators.\"\n"
+            "  ],\n"
+            "  \"installation_methods\": [\n"
+            "    {\n"
+            "      \"name\": \"Method name (e.g. 'uv', 'pip', 'npm', 'docker')\",\n"
+            "      \"command\": \"actual install command\",\n"
+            "      \"description\": \"What this method does or when to use it\"\n"
+            "    }\n"
+            "  ],\n"
+            "  \"recommended_style\": \"One of: reference, narrative, tutorial, showcase, minimal. Pick the style that best fits the project type.\",\n"
+            "  \"has_visual_interface\": \"true if the project has a UI, dashboard, screenshots, or visual output. false otherwise.\",\n"
+            "  \"ui_assets\": [\n"
+            "    \"List of available image/screenshot paths that can be used as hero/demo content. Reference paths from the scan data if any.\"\n"
             "  ]\n"
             "}\n"
             "\n"
@@ -146,7 +160,22 @@ class AnalyzerAgent:
             "- tech_stack: List SPECIFIC frameworks, libraries, and tools (e.g., 'FastMCP', 'UV', 'Pydantic', 'MCP Inspector', 'Uvicorn'). Do NOT just say 'Python' when the project uses 'FastMCP' or 'Streamable HTTP'.\n"
             "- project_persona: Be specific about what the project actually does. 'A learning project for MCP servers' is better than 'A software application'.\n"
             "- key_features: Describe what the specific code does. 'Weather data fetching via MCP protocol' is better than 'Data retrieval feature'.\n"
-            "- architecture_layers: 'agents/ — Three specialized AI agents (Reader, Analyzer, Writer) that form the generation pipeline' is better than 'Business Logic Layer'.\n"
+            "\n"
+            "STYLE RECOMMENDATION:\n"
+            "- recommended_style: Choose the README style that best matches the project:\n"
+            "  * 'reference' — for libraries, CLIs, SDKs, APIs (Axios, FastAPI, ripgrep pattern)\n"
+            "  * 'narrative' — for products, frameworks, applications (Supabase, AppFlowy, Plausible pattern)\n"
+            "  * 'tutorial' — for learning resources, awesome-lists, teaching repos (build-your-own-x pattern)\n"
+            "  * 'showcase' — for products with a strong visual interface (AppFlowy, Phaser pattern)\n"
+            "  * 'minimal' — for small utilities and minimal scripts (jq, Three.js pattern)\n"
+            "- has_visual_interface: true if the project has a UI, dashboard, screenshots, or visual output\n"
+            "- ui_assets: list of relevant image paths from the codebase (the Writer will reference these in the README)\n"
+            "\n"
+            "DIFFERENTIATORS:\n"
+            "- differentiators: List 3-5 CONCRETE technical choices that distinguish this project. Examples: 'TypeScript-first', 'Zero runtime dependencies', 'Single static binary', 'OpenAPI-compatible', 'No new syntax to learn'. If you cannot identify concrete differentiators, return an empty array.\n"
+            "\n"
+            "INSTALLATION:\n"
+            "- installation_methods: List ALL the install commands a user could use (from package.json scripts, pyproject.toml scripts, Makefile, README, Dockerfile, etc.). Include the package manager name, the actual command, and a short description.\n"
         )
 
         # Prepare character budget based on model provider
@@ -198,6 +227,13 @@ class AnalyzerAgent:
             for domain in external_apis:
                 external_apis_text += f"  - {domain}\n"
 
+        hero_assets = scan_results.get("hero_assets", [])
+        hero_assets_text = ""
+        if hero_assets:
+            hero_assets_text = "Visual assets available in the repository (use as hero/demo if has_visual_interface):\n"
+            for asset in hero_assets:
+                hero_assets_text += f"  - {asset['path']} ({asset['kind']})\n"
+
         # Calculate budget for code context
         fixed_len = (
             len(tree_text)
@@ -247,6 +283,9 @@ class AnalyzerAgent:
 
         if external_apis_text:
             user_prompt += f"{external_apis_text}\n\n"
+
+        if hero_assets_text:
+            user_prompt += f"{hero_assets_text}\n\n"
 
         user_prompt += (
             "Please analyze these resources and return the comprehensive JSON analysis. "

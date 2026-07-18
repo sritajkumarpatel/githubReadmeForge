@@ -292,7 +292,16 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         api_key = req_body.get("api_key")
         base_url = req_body.get("base_url")
         custom_answers = req_body.get("custom_answers")
-        readme_style = req_body.get("style", "visual_rich")
+        # Style: prefer user override; otherwise fall back to analyzer-recommended style.
+        from readme_forge.agents.contracts import README_STYLES
+        user_style = req_body.get("style")
+        analyzer_style = analysis.get("recommended_style") if isinstance(analysis, dict) else None
+        if user_style and user_style in README_STYLES:
+            readme_style = user_style
+        elif analyzer_style and analyzer_style in README_STYLES:
+            readme_style = analyzer_style
+        else:
+            readme_style = "narrative"
         lang = req_body.get("lang", "en")
 
         if api_key == "••••••••":

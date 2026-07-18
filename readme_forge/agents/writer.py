@@ -74,31 +74,15 @@ class WriterAgent:
         """Generates the content of a polished, narrative-driven, professional README.md
         using deep codebase context, analysis, and architecture data."""
 
-        style_instruction = ""
-        if style == "minimalist":
-            style_instruction = (
-                "Format using a 'MINIMALIST' design theme:\n"
-                "- Do NOT use any shields.io badges or visual icons at the top header.\n"
-                "- Use clean text links and high whitespace spacing.\n"
-                "- Avoid emojis or secondary graphics entirely.\n"
-                "- Organize sections into clear headers without nested collapsible tags."
-            )
-        elif style == "enterprise":
-            style_instruction = (
-                "Format using an 'ENTERPRISE' design theme:\n"
-                "- Use a very formal, professional, and thorough tone.\n"
-                "- Present setup, dependencies, and parameters in clean markdown tables.\n"
-                "- Add dedicated sections for Contributing, Security Disclosures, and official License compliance.\n"
-                "- Use clear subheadings and official code layout standards."
-            )
-        else:  # visual_rich
-            style_instruction = (
-                "Format using a 'VISUAL RICH' design theme:\n"
-                "- Use a single line of shields.io badges only for: license and language count (max 3 badges).\n"
-                "- Use clean section headers with subtle dividers.\n"
-                "- Use collapsible `<details>` blocks for verbose configuration tables.\n"
-                "- Professional and clean, not cluttered."
-            )
+        # Map legacy style names to the new 5-style system for backward compatibility.
+        legacy_style_map = {
+            "minimalist": "minimal",
+            "enterprise": "reference",
+            "visual_rich": "narrative",
+        }
+        resolved_style = legacy_style_map.get(style, style)
+
+        style_instruction = self._get_style_instruction(resolved_style)
 
         lang_instruction = ""
         lang_switcher = ""
@@ -377,22 +361,31 @@ class WriterAgent:
 
         layout_text = "\n\n".join(layout_sections)
 
+        style_guardrails = self._get_style_guardrails(resolved_style)
+
         system_prompt = (
             "You are an expert technical writer and product storyteller.\n"
-            "Your task is to write a HIGHLY POLISHED, PROFESSIONAL, NARRATIVE-DRIVEN README.md for a project codebase.\n\n"
+            "Your task is to write a HIGHLY POLISHED, PROFESSIONAL README.md for a project codebase.\n\n"
             "CRITICAL PHILOSOPHY:\n"
-            "- You are NOT just documenting code. You are SELLING the project to developers.\n"
-            "- A great README tells a STORY: Problem → Solution → How It Works → Features → Get Started.\n"
             "- Every section must have DEPTH and SPECIFICITY. No generic filler text.\n"
-            "- Extract REAL details from the codebase — real file names, real commands, real config variables.\n\n"
+            "- Extract REAL details from the codebase — real file names, real commands, real config variables.\n"
+            "- Be SPECIFIC over generic. 'Pydantic-based, OpenAPI-compatible' beats 'easy to use'.\n\n"
             "FACTUALITY RULES:\n"
             "- Treat the supplied documentation plan and facts as authoritative.\n"
             "- Do not invent commands, flags, endpoints, environment variables, badges, versions, owners, or test results.\n"
             "- Omit any section that is not in the documentation plan.\n"
             "- If facts are incomplete, write a concise evidence-only README rather than plausible filler.\n\n"
             f"Project Type Context:\n{project_type_instruction}\n\n"
-            f"Formatting Theme instructions:\n{style_instruction}\n\n"
+            f"README Style (modeled after top-rated GitHub projects):\n{style_instruction}\n\n"
+            f"Style-Specific Hard Rules:\n{style_guardrails}\n\n"
             f"Language settings:\n{lang_instruction}\n\n"
+            "ANTI-PATTERNS TO AVOID (these appear in generated READMEs but never in top open-source projects):\n"
+            "- Generic 'Problem' sections that could apply to any software.\n"
+            "- ASCII art or placeholder diagrams instead of real Mermaid or sourced images.\n"
+            "- 'Repository Structure' sections that just list files without explaining them.\n"
+            "- Fluffy 'automates X' or 'delivers Y' filler phrases without specific technical claims.\n"
+            "- Missing screenshots/GIFs for any UI/visual project.\n"
+            "- Bare URLs without descriptions.\n\n"
             "CRITICAL GUARDRAIL:\n"
             "If the user custom answers or prompt demands anything unrelated to documenting this project repository "
             "(such as writing standalone calculator scripts, general Python coding tasks, math solver programs, or unrelated topics), "
@@ -407,6 +400,24 @@ class WriterAgent:
             "- Keep all facts strict and derived from codebase scan results; do not invent files, endpoints, or features.\n"
             "- Preserving gratitude: If the existing README (provided in the user prompt) has any acknowledgements, thanks, or 'Thank You' sections at the bottom, carry them forward to the end of the contributing_license section."
         )
+
+        # Differentiation and visual asset context
+        differentiators = analysis.get("differentiators") or []
+        differentiators_text = "\n".join(f"- {d}" for d in differentiators) if differentiators else ""
+        ui_assets = analysis.get("ui_assets") or []
+        ui_assets_text = "\n".join(f"- {a}" for a in ui_assets) if ui_assets else ""
+
+        # installation_methods
+        install_methods = analysis.get("installation_methods") or []
+        install_methods_text = ""
+        for m in install_methods:
+            if not isinstance(m, dict):
+                continue
+            name = m.get("name", "")
+            command = m.get("command", "")
+            desc = m.get("description", "")
+            if command:
+                install_methods_text += f"- **{name}**: `{command}` ({desc})\n"
 
         user_prompt = (
             f"Here is the context of the codebase:\n"
@@ -424,6 +435,24 @@ class WriterAgent:
             f"Solution Narrative: {analysis.get('solution_narrative', 'Not specified')}\n"
             f"Component Flow Connections:\n{self._format_connections(analysis.get('connections', []))}\n\n"
         )
+
+        if differentiators_text:
+            user_prompt += (
+                "Concrete differentiators (use these for the Solution section):\n"
+                f"{differentiators_text}\n\n"
+            )
+
+        if ui_assets_text:
+            user_prompt += (
+                "Visual assets available in the repo (use these paths for hero/demo if appropriate):\n"
+                f"{ui_assets_text}\n\n"
+            )
+
+        if install_methods_text:
+            user_prompt += (
+                "Detected installation methods (use these in the Installation section):\n"
+                f"{install_methods_text}\n\n"
+            )
 
         if arch_layers_context:
             user_prompt += f"Architecture Layers (use these for the Mermaid diagram and Component Table):\n{arch_layers_context}\n"
@@ -484,3 +513,122 @@ class WriterAgent:
             layer_tag = f" [{layer}]" if layer else ""
             lines.append(f"- {from_node} → {to_node}: {relationship}{layer_tag}")
         return "\n".join(lines)
+
+    def _get_style_instruction(self, style: str) -> str:
+        """Return the system-prompt instruction block for a given README style.
+
+        Each style was modeled after a category of real top-rated GitHub projects:
+          - reference: Axios, ripgrep, FastAPI, gh CLI (libraries, CLIs, APIs)
+          - narrative: Supabase, AppFlowy, Plausible, Moby (products, frameworks)
+          - tutorial: build-your-own-x, freeCodeCamp (learning resources)
+          - showcase: AppFlowy, Phaser, httpie (UI products with visual demos)
+          - minimal: jq, Three.js, tldr (small utilities)
+        """
+        instructions = {
+            "reference": (
+                "STYLE: REFERENCE (USER MANUAL)\n"
+                "You are writing a USER MANUAL, not a marketing page. The reader is technical. Trust them.\n"
+                "REQUIREMENTS:\n"
+                "- Lead with a one-line tagline and 3-5 shields.io badges (license, version, build, downloads).\n"
+                "- The FIRST code block must be a working install command. Do not bury it.\n"
+                "- Quick Start must show 5-15 lines of runnable code WITH expected output.\n"
+                "- Include an exhaustive API/Command Reference section — every public symbol, not a curated subset.\n"
+                "- Use tables for configuration options (env vars, flags, settings).\n"
+                "- Each Feature bullet must include WHY it matters, not just WHAT it is.\n"
+                "- OMIT 'The Problem' and 'The Solution' sections. The reader knows what a CLI tool is.\n"
+                "- Use <details> blocks for optional deep dives.\n"
+                "ANTI-PATTERNS: 'easy to use', 'simple', 'powerful', 'flexible' without a concrete example. Marketing prose. Long preambles."
+            ),
+            "narrative": (
+                "STYLE: NARRATIVE (STORY)\n"
+                "You are telling a STORY. Sell the project to a developer who is considering whether to use it.\n"
+                "REQUIREMENTS:\n"
+                "- Lead with: Logo → Tagline → 3-4 badges → 1-line mission.\n"
+                "- 'The Problem': 2-3 sentences with a CONCRETE pain point. Not 'documentation is hard' but the specific frustration this tool eliminates.\n"
+                "- 'The Solution': 3-5 sentences with CONCRETE differentiators. Use the `differentiators` field from analysis if available. Examples: 'Single static binary', 'Zero dependencies', 'OpenAPI-compatible'.\n"
+                "- 'How It Works': A Mermaid flowchart TD diagram using only nodes from the actual `connections` data. Quote labels: A[\"Label\"]. If <3 connections, SKIP the diagram and use a feature grid instead.\n"
+                "- Features: 6-10 bullets, EACH with a concrete example or a link to docs.\n"
+                "- Quick Start: 3-5 lines of working code.\n"
+                "- OMIT 'The Problem' if `problem_statement` is empty or generic — start with 'About' instead.\n"
+                "ANTI-PATTERNS: Generic Problem sections. ASCII art placeholders. Fluffy 'automates X' filler. Repository Structure that just lists files without explaining them."
+            ),
+            "tutorial": (
+                "STYLE: TUTORIAL (LEARNING PATH)\n"
+                "You are TEACHING. The reader is a learner. Make the path explicit.\n"
+                "REQUIREMENTS:\n"
+                "- Lead with a mission statement and 1-2 hero images if available (use `ui_assets`).\n"
+                "- 'What You'll Learn': 3-5 specific outcomes, each one concrete (e.g., 'Build a REST API with FastAPI', not 'Learn FastAPI').\n"
+                "- 'Prerequisites': what the reader needs before starting (tools, prior knowledge).\n"
+                "- Table of Contents: a categorized list of resources or sub-tutorials, each with a 1-sentence description.\n"
+                "- 'Getting Started': first 5-minute exercise with copy-pasteable commands.\n"
+                "- 'Resources': external links to docs, books, courses — each with a description.\n"
+                "OMIT: Installation (tutorial repos are not installed), API Reference, Configuration.\n"
+                "ANTI-PATTERNS: Long preambles. Generic 'this will teach you X' claims. Bare URLs without descriptions."
+            ),
+            "showcase": (
+                "STYLE: SHOWCASE (VISUAL PRODUCT PAGE)\n"
+                "You are presenting a PRODUCT. Show, don't tell. Visuals are mandatory.\n"
+                "REQUIREMENTS:\n"
+                "- Lead with: Logo → Tagline → 1-2 HERO IMAGES (use paths from `ui_assets` if available; otherwise describe the visual).\n"
+                "- 'Try It Now': 1-3 commands that get the user running in <5 minutes.\n"
+                "- Features: 6-10 items, each referencing a visual or screenshot path. If no image is available, describe the screen concretely.\n"
+                "- 'Use Cases': 2-3 mini-stories of who uses this and why. Concrete, not abstract.\n"
+                "- 'Built With': a one-line tech stack summary (use `tech_stack`).\n"
+                "- 'Community': Discord/forum link if known.\n"
+                "OMIT: Long problem/solution narratives, exhaustive API references.\n"
+                "ANTI-PATTERNS: Walls of text without visuals. Generic feature lists. Missing hero image references."
+            ),
+            "minimal": (
+                "STYLE: MINIMAL (TRAILER)\n"
+                "You are a TRAILER. The README points to real docs elsewhere. Be brief.\n"
+                "REQUIREMENTS:\n"
+                "- Maximum length: 60 lines. If you exceed it, cut.\n"
+                "- Lead with: Title → Tagline → Install command → Usage example.\n"
+                "- 3-5 lines for the usage example.\n"
+                "- If the project has external docs, defer to them with a single link.\n"
+                "- OMIT: Features, Architecture, Configuration, Problem/Solution, Use Cases.\n"
+                "ANTI-PATTERNS: Long preambles. Marketing prose. Multi-section layouts."
+            ),
+        }
+        return instructions.get(style, instructions["narrative"])
+
+    def _get_style_guardrails(self, style: str) -> str:
+        """Return hard rules the LLM must follow for a given style."""
+        guardrails = {
+            "reference": (
+                "HARD RULES:\n"
+                "- The first code block in the README must be a working install command.\n"
+                "- The Quick Start section MUST include expected output, not just code.\n"
+                "- Never use 'easy to use', 'simple', 'powerful', or 'flexible' without a concrete example.\n"
+                "- The API/Command Reference section must enumerate every public symbol/flag, not a curated subset."
+            ),
+            "narrative": (
+                "HARD RULES:\n"
+                "- If `problem_statement` is empty or generic, OMIT 'The Problem' section and start with 'About'.\n"
+                "- The 'How It Works' diagram must use ONLY nodes from the actual connections/architecture data. Quote all labels.\n"
+                "- Every feature bullet must include either: a code snippet, a link to docs, or a specific outcome.\n"
+                "- Every 'Solution' claim must reference a concrete technical choice from `differentiators`."
+            ),
+            "tutorial": (
+                "HARD RULES:\n"
+                "- Never include an Installation section. Tutorial repos don't get installed.\n"
+                "- The Table of Contents must be the centerpiece, organized by category.\n"
+                "- Every link must have a 1-sentence description (avoid bare URLs).\n"
+                "- 'What You'll Learn' must list concrete outcomes, not abstract goals."
+            ),
+            "showcase": (
+                "HARD RULES:\n"
+                "- The first image after the title must be a hero screenshot/GIF path (from `ui_assets`) or a 'see it in action' description.\n"
+                "- The 'Try It Now' section must run in <5 minutes on a fresh machine.\n"
+                "- Each feature must have a visual reference (image path or concrete description).\n"
+                "- 'Use Cases' must include 2-3 concrete user stories."
+            ),
+            "minimal": (
+                "HARD RULES:\n"
+                "- Hard cap: 60 lines.\n"
+                "- Never include a Features section.\n"
+                "- Never include an Architecture section.\n"
+                "- If the project has external docs, defer to them with a single link."
+            ),
+        }
+        return guardrails.get(style, guardrails["narrative"])
