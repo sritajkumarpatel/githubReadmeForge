@@ -19,17 +19,15 @@
 
 ## 🎬 See It In Action
 
-> ```html
-> <p align="center">
->   <img src="assets/demo.gif" alt="Demo" width="800">
-> </p>
->
-> <p align="center">
->   <a href="assets/demo.mp4"><img src="assets/screenshot.png" alt="Click to watch the demo video" width="800"></a>
-> </p>
-> ```
+<p align="center">
+  <a href="assets/demo.mp4">
+    <img src="assets/screenshot.png" alt="githubReadmeForge demo — click to watch the video" width="800">
+  </a>
+</p>
 
-
+<p align="center">
+  <em>👆 Click the screenshot to watch the full demo (<a href="assets/demo.mp4">demo.mp4</a>)</em>
+</p>
 
 ---
 
@@ -364,7 +362,7 @@ githubReadmeForge/
 │   ├── test_writer_robustness.py
 │   ├── test_demo_placeholder.py     # Demo placeholder section tests
 │   └── ...
-├── assets/                          # ← drop your demo.gif & screenshot.png here
+├── assets/                          # demo assets (screenshot.png, demo.mp4)
 │   └── readme/
 │       ├── brand-light.svg          # Light-mode hero banner
 │       ├── brand-dark.svg           # Dark-mode hero banner
