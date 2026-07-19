@@ -29,6 +29,25 @@ INTENT_VISUAL_STRATEGY: dict[str, str] = {
     "unknown":     "minimal",
 }
 
+# README style categories, modeled after patterns observed in 30+ top GitHub READMEs.
+# Each style is a documented convention (Reference = Axios/ripgrep; Narrative =
+# Supabase/AppFlowy; Tutorial = build-your-own-x; Showcase = AppFlowy/Phaser;
+# Minimal = jq/Three.js). User may override the auto-detected default.
+README_STYLES = {"reference", "narrative", "tutorial", "showcase", "minimal"}
+
+# Auto-detect default README style from project type.
+INTENT_README_STYLE: dict[str, str] = {
+    "library":     "reference",   # Axios, FastAPI, ripgrep pattern
+    "cli":         "reference",   # ripgrep, fd, bat, httpie pattern
+    "api":         "reference",   # FastAPI, Express pattern
+    "application": "narrative",   # Supabase, AppFlowy, Plausible pattern
+    "demo":        "showcase",    # AppFlowy, Phaser, httpie pattern
+    "learning":    "tutorial",    # build-your-own-x, freeCodeCamp pattern
+    "poc":         "minimal",     # experimental, often small
+    "minimal":     "minimal",     # jq, Three.js pattern
+    "unknown":     "narrative",   # safest default
+}
+
 
 def _as_string_list(value: Any) -> list[str]:
     """Return a clean list of non-empty strings without inventing values."""
@@ -185,37 +204,88 @@ def build_documentation_plan(analysis: dict[str, Any]) -> dict[str, Any]:
         classification = {}
     intent = classification.get("primary_intent", analysis.get("project_type", "application"))
     surfaces = _as_string_list(classification.get("delivery_surfaces", []))
-    sections = ["title", "overview"]
 
-    # Problem / solution only make sense for substantive project types.
+    # All sections that are universal or have evidence/support in the codebase
+    available_sections = ["title", "overview", "features", "repository_structure", "contributing_license"]
+
+    # Problem/solution availability
     if intent not in {"learning", "minimal", "unknown"}:
-        sections.extend(["problem", "solution"])
+        available_sections.extend(["problem", "solution"])
 
-    # Demo and PoC get a shorter "demonstration" section instead of full problem/solution.
-    # (They already got "problem" + "solution" above for poc/demo — that's intentional;
-    # they just get brief versions per the writer instructions.)
+    # key_concepts availability
+    if intent in {"application", "api", "library"}:
+        available_sections.append("key_concepts")
 
-    if analysis.get("installation_commands") or "package" in surfaces:
-        sections.append("installation")
+    # installation availability
+    if analysis.get("installation_commands") or "package" in surfaces or "application" in surfaces or analysis.get("version_info"):
+        available_sections.append("installation")
+
+    # usage availability
     if analysis.get("cli_commands") or "cli" in surfaces:
-        sections.append("usage")
+        available_sections.append("usage")
+
+    # configuration availability
     if analysis.get("config_variables"):
-        sections.append("configuration")
+        available_sections.append("configuration")
+
+    # api_reference availability
     if analysis.get("api_endpoints") or "api" in surfaces:
-        sections.append("api_reference")
-    if analysis.get("key_features"):
-        sections.append("features")
+        available_sections.append("api_reference")
+
+    # architecture availability
     if analysis.get("connections") or analysis.get("architecture_layers"):
-        sections.append("architecture")
+        available_sections.append("architecture")
+
+    # data_models availability
     if analysis.get("data_models"):
-        sections.append("data_models")
-    if analysis.get("test_coverage", {}).get("has_tests"):
-        sections.append("testing")
-    sections.extend(["repository_structure", "contributing_license"])
+        available_sections.append("data_models")
+
+    # testing availability
+    test_cov = analysis.get("test_coverage", {})
+    if test_cov.get("has_tests") or test_cov.get("test_commands"):
+        available_sections.append("testing")
+
+    # Now select the most important sections to recommend/pre-check by default:
+    sections = ["title", "overview", "features", "repository_structure", "contributing_license"]
+
+    if "problem" in available_sections and intent in {"application", "api", "library", "cli"}:
+        sections.append("problem")
+    if "solution" in available_sections and intent in {"application", "api", "library", "cli"}:
+        sections.append("solution")
+    if "installation" in available_sections:
+        sections.append("installation")
+    if "usage" in available_sections:
+        sections.append("usage")
+    if "architecture" in available_sections:
+        sections.append("architecture")
+
+    # Define the absolute correct order of sections:
+    ordered_keys = [
+        "title",
+        "overview",
+        "problem",
+        "solution",
+        "key_concepts",
+        "architecture",
+        "features",
+        "installation",
+        "usage",
+        "configuration",
+        "api_reference",
+        "data_models",
+        "testing",
+        "repository_structure",
+        "contributing_license",
+    ]
+
+    # Sort sections and available_sections lists to maintain proper document flow:
+    sections = [k for k in ordered_keys if k in sections]
+    available_sections = [k for k in ordered_keys if k in available_sections]
 
     return {
         "version": 1,
         "sections": sections,
+        "available_sections": available_sections,
         "primary_intent": intent,
         "delivery_surfaces": surfaces,
         "include_architecture_diagram": len(_as_dict_list(analysis.get("connections"))) >= 2,
@@ -251,6 +321,37 @@ def normalize_analysis(raw: Any, scan_results: dict[str, Any], analysis_complete
     if project_maturity not in MATURITY_LEVELS:
         project_maturity = classification["maturity"]
 
+    # Resolve recommended README style: trust LLM only when it picks a known style;
+    # otherwise fall back to the project_type default.
+    raw_style = raw.get("recommended_style")
+    if isinstance(raw_style, str) and raw_style.lower() in README_STYLES:
+        recommended_style = raw_style.lower()
+    else:
+        recommended_style = INTENT_README_STYLE.get(project_type, "narrative")
+
+    # Hero/demo assets: trust the Reader's scan over LLM guesses.
+    raw_ui_assets = _as_string_list(raw.get("ui_assets"))
+    hero_assets = scan_results.get("hero_assets", []) or []
+    hero_asset_paths = [a["path"] for a in hero_assets if isinstance(a, dict) and a.get("path")]
+    # Combine LLM hints with the scanned assets; scan assets win because they are real files.
+    if not raw_ui_assets:
+        ui_assets = hero_asset_paths
+    else:
+        # Union, scan results first so the writer can rely on them existing
+        ui_assets = hero_asset_paths + [p for p in raw_ui_assets if p not in hero_asset_paths]
+
+    has_visual_interface = raw.get("has_visual_interface")
+    if not isinstance(has_visual_interface, bool):
+        # Default to True if any UI surface or hero asset was found
+        has_visual_interface = "ui" in classification.get("delivery_surfaces", []) or bool(hero_asset_paths)
+
+    # Differentiators must be specific; discard vague entries.
+    raw_differentiators = _as_string_list(raw.get("differentiators"))
+    differentiators = [
+        d for d in raw_differentiators
+        if not any(vague in d.lower() for vague in ("easy to use", "simple to", "powerful", "flexible", "modern"))
+    ]
+
     normalized = {
         "project_name": raw.get("project_name") if isinstance(raw.get("project_name"), str) else "Project",
         "project_type": project_type,
@@ -270,11 +371,17 @@ def normalize_analysis(raw: Any, scan_results: dict[str, Any], analysis_complete
         "cli_commands": _as_dict_list(raw.get("cli_commands")),
         "data_models": _as_dict_list(raw.get("data_models")),
         "installation_commands": _as_dict_list(raw.get("installation_commands")),
+        "installation_methods": _as_dict_list(raw.get("installation_methods")),
         "external_services": _as_string_list(raw.get("external_services")),
         "test_coverage": raw.get("test_coverage") if isinstance(raw.get("test_coverage"), dict) else {},
         "architecture_layers": _as_dict_list(raw.get("architecture_layers")),
         "improvements": _as_dict_list(raw.get("improvements")),
         "connections": _as_dict_list(raw.get("connections")),
+        "differentiators": differentiators,
+        "recommended_style": recommended_style,
+        "has_visual_interface": has_visual_interface,
+        "ui_assets": ui_assets,
+        "hero_assets": hero_assets,
         "classification": classification,
         "analysis_complete": analysis_complete,
         "context_truncated": context_truncated,

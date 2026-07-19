@@ -78,6 +78,7 @@ class ReaderAgent:
         test_signals = self._extract_test_signals(self.local_path)
         version_info = self._extract_version_and_changelog(self.local_path)
         external_api_calls = self._infer_external_apis(self.local_path)
+        hero_assets = self._extract_hero_assets(self.local_path)
 
         return {
             "path": self.local_path,
@@ -89,6 +90,7 @@ class ReaderAgent:
             "test_signals": test_signals,
             "version_info": version_info,
             "external_api_calls": external_api_calls,
+            "hero_assets": hero_assets,
         }
 
     def _generate_tree(self, path, max_depth=4):
@@ -541,3 +543,69 @@ class ReaderAgent:
                     pass
 
         return sorted(found_urls)
+
+    def _extract_hero_assets(self, path):
+        """Scans for visual assets (images, GIFs, videos) that can be used as hero/demo content.
+
+        Returns a list of relative paths to image files found in common asset directories,
+        prioritized by location (root > assets/ > docs/ > screenshots/).
+        """
+        path_obj = Path(path)
+        image_extensions = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".mp4", ".webm"}
+
+        priority_dirs = [
+            "",  # root
+            "assets", "assets/images", "assets/img", "assets/screenshots", "assets/media",
+            "docs", "docs/images", "docs/img", "docs/screenshots",
+            "screenshots", "images", "img", "media", "public", "static",
+        ]
+
+        ignored_dirs = {
+            ".git", "node_modules", "venv", ".venv", "__pycache__",
+            "build", "dist", "vendor", "coverage", ".next",
+        }
+
+        found_assets = []
+        seen_paths = set()
+
+        def _scan_dir(directory, depth=0, max_depth=2):
+            """Scan a directory for image files, recursing up to max_depth levels."""
+            if depth > max_depth:
+                return
+            try:
+                for item in directory.iterdir():
+                    if item.is_file() and item.suffix.lower() in image_extensions:
+                        rel = str(item.relative_to(path_obj))
+                        if rel not in seen_paths:
+                            seen_paths.add(rel)
+                            # Prioritize files with "hero", "screenshot", "demo" in the name
+                            priority = 0
+                            name_lower = item.stem.lower()
+                            if any(kw in name_lower for kw in ("hero", "banner", "cover", "header")):
+                                priority = 1
+                            elif any(kw in name_lower for kw in ("screenshot", "demo", "preview")):
+                                priority = 2
+                            elif any(kw in name_lower for kw in ("feature", "ui", "interface")):
+                                priority = 3
+                            # If we recursed to find this asset, lower its priority a bit
+                            priority += depth
+                            found_assets.append({
+                                "path": rel,
+                                "name": item.name,
+                                "kind": "video" if item.suffix.lower() in {".mp4", ".webm"} else "image",
+                                "priority": priority,
+                            })
+                    elif item.is_dir() and item.name not in ignored_dirs:
+                        _scan_dir(item, depth + 1, max_depth)
+            except (PermissionError, OSError):
+                pass
+
+        for dir_name in priority_dirs:
+            search_dir = path_obj / dir_name if dir_name else path_obj
+            if not search_dir.is_dir():
+                continue
+            _scan_dir(search_dir, depth=0)
+
+        # Sort by priority (lowest number = highest priority), then by name
+        found_assets.sort(key=lambda x: (x["priority"], x["name"]))
+        return found_assets[:10]  # cap at 10 to avoid noise

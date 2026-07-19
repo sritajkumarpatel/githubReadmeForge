@@ -33,6 +33,15 @@ class LLMClient:
             return bool(self.base_url)
         return bool(self.api_key)
 
+    def _run_with_timeout(self, func, timeout_sec):
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(func)
+            try:
+                return future.result(timeout=timeout_sec)
+            except concurrent.futures.TimeoutError:
+                raise Exception(f"API call timed out after {timeout_sec} seconds")
+
     def get_available_models(self):
         """Fetch available models for the provider."""
         if self.provider == "mock":
@@ -40,15 +49,16 @@ class LLMClient:
         elif self.provider == "openai":
             try:
                 from openai import OpenAI
-                client = OpenAI(api_key=self.api_key)
-                models = client.models.list()
+                client = OpenAI(api_key=self.api_key, timeout=10.0)
+                models = self._run_with_timeout(client.models.list, 10)
                 return [m.id for m in models.data if not m.id.startswith('gpt-3.5-turbo-0301')]
             except Exception as e:
                 return {"error": str(e)}
         elif self.provider == "claude":
             try:
                 from anthropic import Anthropic
-                client = Anthropic(api_key=self.api_key)
+                # Initialize client to verify credentials/connection
+                client = Anthropic(api_key=self.api_key, timeout=10.0)
                 return ["claude-3-5-sonnet-20240620", "claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"]
             except Exception as e:
                 return {"error": str(e)}
@@ -56,23 +66,28 @@ class LLMClient:
             try:
                 import google.generativeai as genai
                 genai.configure(api_key=self.api_key)
-                return [m.name for m in genai.list_models()]
+                models_list = self._run_with_timeout(genai.list_models, 10)
+                return [m.name for m in models_list]
             except Exception as e:
                 return {"error": str(e)}
         elif self.provider == "ollama":
             try:
                 import requests
-                response = requests.get(f"{self.base_url}/api/tags")
+                def fetch():
+                    return requests.get(f"{self.base_url}/api/tags", timeout=8)
+                response = self._run_with_timeout(fetch, 10)
                 if response.status_code == 200:
                     data = response.json()
                     return [m["name"] for m in data.get("models", [])]
-                return {"error": "Failed to fetch models"}
+                return {"error": f"Failed to fetch models: HTTP {response.status_code}"}
             except Exception as e:
                 return {"error": str(e)}
         elif self.provider == "opencode":
             try:
                 import requests
-                response = requests.get(f"{self.base_url}/config/providers", timeout=5)
+                def fetch():
+                    return requests.get(f"{self.base_url}/config/providers", timeout=8)
+                response = self._run_with_timeout(fetch, 10)
                 if response.status_code == 200:
                     data = response.json()
                     models = []
@@ -81,7 +96,7 @@ class LLMClient:
                             for model_id in provider_data["models"]:
                                 models.append(f"{provider_id}/{model_id}")
                     return models if models else ["claude-3-5-sonnet-20241022"]
-                return {"error": "Failed to fetch models"}
+                return {"error": f"Failed to fetch models: HTTP {response.status_code}"}
             except Exception as e:
                 return {"error": str(e)}
         return []
@@ -102,71 +117,114 @@ class LLMClient:
             elif self.provider == "opencode":
                 return self._generate_opencode(system_prompt, user_prompt, response_format_json)
         except Exception as e:
+            msg = str(e)
+            # Preserve specific, actionable error messages so the UI can show them as-is
+            passthrough_phrases = (
+                "not found on the local server",
+                "Pull it first",
+                "timed out after",
+                "Could not connect to Ollama",
+                "ollama serve",
+                "context length",
+                "max_tokens",
+            )
+            if any(phrase in msg for phrase in passthrough_phrases):
+                raise
             raise Exception(f"LLM API call failed: {e}")
 
     def _generate_gemini(self, system_prompt, user_prompt, response_format_json):
         import google.generativeai as genai
+        import signal
+
         genai.configure(api_key=self.api_key)
-        
+
         config = {}
         if response_format_json:
             config["response_mime_type"] = "application/json"
-            
+
         model = genai.GenerativeModel(
             model_name=self.model,
             system_instruction=system_prompt,
-            generation_config=config
+            generation_config=config,
         )
-        response = model.generate_content(user_prompt)
+        # Gemini SDK has no built-in timeout — run with a thread-based wall-clock limit
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(model.generate_content, user_prompt)
+            try:
+                response = future.result(timeout=120)
+            except concurrent.futures.TimeoutError:
+                raise Exception("Gemini API call timed out after 120 seconds.")
         return response.text
 
     def _generate_openai(self, system_prompt, user_prompt, response_format_json):
         from openai import OpenAI
-        client = OpenAI(api_key=self.api_key)
-        
+        client = OpenAI(api_key=self.api_key, timeout=120.0)
+
         kwargs = {}
         if response_format_json:
             kwargs["response_format"] = {"type": "json_object"}
-            
+
         response = client.chat.completions.create(
             model=self.model,
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "user", "content": user_prompt},
             ],
-            **kwargs
+            **kwargs,
         )
         return response.choices[0].message.content
 
     def _generate_claude(self, system_prompt, user_prompt, response_format_json):
         from anthropic import Anthropic
-        client = Anthropic(api_key=self.api_key)
-        
-        # System instructions go to the system param in Claude Messages API
+        client = Anthropic(api_key=self.api_key, timeout=120.0)
+
         response = client.messages.create(
             model=self.model,
             max_tokens=8192,
             system=system_prompt,
             messages=[
-                {"role": "user", "content": user_prompt}
-            ]
+                {"role": "user", "content": user_prompt},
+            ],
         )
         return response.content[0].text
 
     def _generate_ollama(self, system_prompt, user_prompt, response_format_json):
+        import requests
+
         url = f"{self.base_url.rstrip('/')}/api/generate"
         prompt = f"System Instruction:\n{system_prompt}\n\nUser Input:\n{user_prompt}"
-        
+
         data = {
             "model": self.model,
             "prompt": prompt,
-            "stream": False
+            "stream": False,
         }
         if response_format_json:
             data["format"] = "json"
-            
-        res = requests.post(url, json=data, timeout=60)
-        res.raise_for_status()
+
+        try:
+            # 300 s — local models can be slow, especially on first load when the
+            # model is being loaded into memory or the repo context is large.
+            res = requests.post(url, json=data, timeout=300)
+            res.raise_for_status()
+        except requests.exceptions.Timeout:
+            raise Exception(
+                f"Ollama model '{self.model}' timed out after 300 seconds. "
+                "Try a smaller/faster model or increase system resources."
+            )
+        except requests.exceptions.ConnectionError:
+            raise Exception(
+                f"Could not connect to Ollama at '{self.base_url}'. "
+                "Make sure Ollama is running ('ollama serve') and the host URL is correct."
+            )
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 404:
+                raise Exception(
+                    f"Ollama model '{self.model}' was not found on the local server. "
+                    f"Pull it first: ollama pull {self.model}"
+                ) from e
+            raise e
         return res.json().get("response", "")
 
     def _generate_opencode(self, system_prompt, user_prompt, response_format_json):

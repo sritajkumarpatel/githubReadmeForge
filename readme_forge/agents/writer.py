@@ -74,31 +74,15 @@ class WriterAgent:
         """Generates the content of a polished, narrative-driven, professional README.md
         using deep codebase context, analysis, and architecture data."""
 
-        style_instruction = ""
-        if style == "minimalist":
-            style_instruction = (
-                "Format using a 'MINIMALIST' design theme:\n"
-                "- Do NOT use any shields.io badges or visual icons at the top header.\n"
-                "- Use clean text links and high whitespace spacing.\n"
-                "- Avoid emojis or secondary graphics entirely.\n"
-                "- Organize sections into clear headers without nested collapsible tags."
-            )
-        elif style == "enterprise":
-            style_instruction = (
-                "Format using an 'ENTERPRISE' design theme:\n"
-                "- Use a very formal, professional, and thorough tone.\n"
-                "- Present setup, dependencies, and parameters in clean markdown tables.\n"
-                "- Add dedicated sections for Contributing, Security Disclosures, and official License compliance.\n"
-                "- Use clear subheadings and official code layout standards."
-            )
-        else:  # visual_rich
-            style_instruction = (
-                "Format using a 'VISUAL RICH' design theme:\n"
-                "- Use a single line of shields.io badges only for: license and language count (max 3 badges).\n"
-                "- Use clean section headers with subtle dividers.\n"
-                "- Use collapsible `<details>` blocks for verbose configuration tables.\n"
-                "- Professional and clean, not cluttered."
-            )
+        # Map legacy style names to the new 5-style system for backward compatibility.
+        legacy_style_map = {
+            "minimalist": "minimal",
+            "enterprise": "reference",
+            "visual_rich": "narrative",
+        }
+        resolved_style = legacy_style_map.get(style, style)
+
+        style_instruction = self._get_style_instruction(resolved_style)
 
         lang_instruction = ""
         lang_switcher = ""
@@ -276,6 +260,7 @@ class WriterAgent:
         architecture_diagram = bool(documentation_plan.get("include_architecture_diagram"))
         visual_intro = ""
         visual_assets = {}  # always initialise so post-processing can safely check it
+        include_header_banner = True
         if style == "visual_rich" and output_dir:
             visual_generator = VisualAssetGenerator(Path(output_dir))
 
@@ -283,6 +268,7 @@ class WriterAgent:
             if brief:
                 visual_pack = brief.get("visual_pack", "ui_app")
                 no_external_assets = bool(brief.get("no_external_assets"))
+                include_header_banner = bool(brief.get("include_header_banner", True))
             else:
                 # Auto-select from classification signal — no user input needed
                 doc_plan = analysis.get("documentation_plan", {})
@@ -300,114 +286,139 @@ class WriterAgent:
             analysis["visual_assets"] = visual_assets
             visual_intro = visual_generator.markdown_intro(visual_assets, no_external_assets=no_external_assets)
 
+        # Dynamically build layout guidelines based on planned_sections
+        layout_dict = {
+            "title": (
+                "1. **Title Block**: Project name as H1 with a compelling tagline.\n"
+                "   Immediately below the H1 title, add a row of standard, professional shields.io badges. "
+                "You must include the following badges:\n"
+                "   - **Build Status / CI/CD**: A GitHub Actions status badge (use github/actions/workflow/status/{owner}/{repo}/{workflow_file}.yml if workflows exist, or fallback to a template status badge).\n"
+                "   - **Language / Version**: A badge showing the primary language and version (e.g., Python 3.10+, Node.js >=18, etc. matching the codebase language).\n"
+                "   - **License**: A badge showing the project's license (e.g., MIT, Apache 2.0, or whatever license is detected/analyzed).\n"
+                "   - **Testing / Coverage**: A code coverage or test pass status badge (if the project has tests).\n"
+                "   Format all badges as standard markdown badge links using shields.io style flat-square or flat for a premium look."
+            ),
+            "overview": (
+                "2. **One-liner tagline**: A single compelling tagline under the title that hooks the reader, followed by a concise narrative summarizing what the project is."
+            ),
+            "problem": (
+                "3. **The Problem**:\n"
+                "   - Write a compelling narrative explaining the PAIN POINT this project solves.\n"
+                "   - Use the `problem_statement` from analysis as a starting point.\n"
+                "   - Use bullet points to list frustrations the tool addresses."
+            ),
+            "solution": (
+                "4. **The Solution**:\n"
+                "   - Write paragraphs explaining HOW this project solves the problem.\n"
+                "   - Use the `solution_narrative` from analysis as a starting point."
+            ),
+            "key_concepts": (
+                "5. **Key Concepts**:\n"
+                "   - Define 3-5 domain-specific terms, design patterns, or core abstractions used in the project.\n"
+                "   - Use a small markdown table: | Term | Definition |"
+            ),
+            "architecture": (
+                "6. **How It Works / Architecture**:\n"
+                "   a) **Architecture Diagram**:\n"
+                "      - Generate a native Mermaid.js flowchart TD diagram inside a markdown code block showing the connections and data flows. Use ONLY alphanumeric node IDs and quoted labels like A[\"Label\"] to prevent syntax errors.\n"
+                "   b) **How It Works — Step-by-Step**:\n"
+                "      A numbered walkthrough explaining the component flow (3-7 steps).\n"
+                "   c) **Component Table**: Table: Component | Role | Input | Output."
+            ),
+            "features": (
+                "7. **Features**: A clean feature list using bold sub-headings (### Feature Name) and 2-3 sentence descriptions."
+            ),
+            "installation": (
+                "8. **Installation**: Concrete, numbered, copy-pasteable installation steps using shell code blocks."
+            ),
+            "usage": (
+                "9. **Quick Start / Usage**: Concrete usage examples under 3 commands showing expected output."
+            ),
+            "configuration": (
+                "10. **Configuration & Parameters**: Table of environment variables and CLI flags."
+            ),
+            "api_reference": (
+                "11. **API Reference**: Document each endpoint with HTTP method, path, and description."
+            ),
+            "data_models": (
+                "12. **Data Models**: Present each data model as a table: | Field | Type | Description |"
+            ),
+            "repository_structure": (
+                "13. **Repository Structure**: The scanned directory tree inside a code block with annotations."
+            ),
+            "contributing_license": (
+                "14. **Contributing & License**: Clean links to CONTRIBUTING.md, LICENSE, and testing run instructions.\n"
+                "    - SPECIAL GRATITUDE PRESERVATION RULE: If the existing README has any thanks, acknowledgements, gratitude, or 'Thank You' sections at the bottom, you MUST preserve them and append them at the end of this section to keep the project's original sentiment."
+            ),
+        }
+
+        layout_sections = []
+        for sec in planned_sections:
+            if sec in layout_dict:
+                layout_sections.append(layout_dict[sec])
+            elif sec == "testing" and "contributing_license" not in planned_sections:
+                layout_sections.append("**. **Testing**: Document test instructions and command lines to run the test suite.")
+
+        layout_text = "\n\n".join(layout_sections)
+
+        style_guardrails = self._get_style_guardrails(resolved_style)
+
         system_prompt = (
             "You are an expert technical writer and product storyteller.\n"
-            "Your task is to write a HIGHLY POLISHED, PROFESSIONAL, NARRATIVE-DRIVEN README.md for a project codebase.\n\n"
+            "Your task is to write a HIGHLY POLISHED, PROFESSIONAL README.md for a project codebase.\n\n"
             "CRITICAL PHILOSOPHY:\n"
-            "- You are NOT just documenting code. You are SELLING the project to developers.\n"
-            "- A great README tells a STORY: Problem → Solution → How It Works → Features → Get Started.\n"
             "- Every section must have DEPTH and SPECIFICITY. No generic filler text.\n"
-            "- Extract REAL details from the codebase — real file names, real commands, real config variables.\n\n"
+            "- Extract REAL details from the codebase — real file names, real commands, real config variables.\n"
+            "- Be SPECIFIC over generic. 'Pydantic-based, OpenAPI-compatible' beats 'easy to use'.\n\n"
             "FACTUALITY RULES:\n"
             "- Treat the supplied documentation plan and facts as authoritative.\n"
             "- Do not invent commands, flags, endpoints, environment variables, badges, versions, owners, or test results.\n"
             "- Omit any section that is not in the documentation plan.\n"
             "- If facts are incomplete, write a concise evidence-only README rather than plausible filler.\n\n"
             f"Project Type Context:\n{project_type_instruction}\n\n"
-            f"Formatting Theme instructions:\n{style_instruction}\n\n"
+            f"README Style (modeled after top-rated GitHub projects):\n{style_instruction}\n\n"
+            f"Style-Specific Hard Rules:\n{style_guardrails}\n\n"
             f"Language settings:\n{lang_instruction}\n\n"
+            "ANTI-PATTERNS TO AVOID (these appear in generated READMEs but never in top open-source projects):\n"
+            "- Generic 'Problem' sections that could apply to any software.\n"
+            "- ASCII art or placeholder diagrams instead of real Mermaid or sourced images.\n"
+            "- 'Repository Structure' sections that just list files without explaining them.\n"
+            "- Fluffy 'automates X' or 'delivers Y' filler phrases without specific technical claims.\n"
+            "- Missing screenshots/GIFs for any UI/visual project.\n"
+            "- Bare URLs without descriptions.\n\n"
             "CRITICAL GUARDRAIL:\n"
             "If the user custom answers or prompt demands anything unrelated to documenting this project repository "
             "(such as writing standalone calculator scripts, general Python coding tasks, math solver programs, or unrelated topics), "
             "you MUST refuse the request and respond with exactly: 'Refusal: This request is unrelated to README generation. Please ask documentation-related questions.'\n\n"
-            "OTHERWISE, write the complete README markdown file using the following **Layout Structure**:\n\n"
-            "1. **Title Block**: Project name as H1 with a compelling tagline.\n"
-            "   Add shields.io badges using EXACTLY these URL patterns (fill in real values):\n"
-            "   ![License](https://img.shields.io/github/license/{owner}/{repo})\n"
-            "   ![Language](https://img.shields.io/github/languages/top/{owner}/{repo})\n"
-            "   If the GitHub owner/repo cannot be determined, use a generic language badge like:\n"
-            "   ![Python](https://img.shields.io/badge/python-3.10%2B-blue)\n"
-            "   Maximum 3 badges. Do NOT invent badge URLs with fake parameters.\n\n"
-            "2. **One-liner tagline**: A single compelling sentence under the title that hooks the reader.\n\n"
-            "3. **The Problem** (MANDATORY only for application, api, library, and cli project types. For poc, keep it to a single brief paragraph. SKIP this section entirely if the project type is learning or minimal):\n"
-            "   - Write a compelling 2-3 paragraph narrative explaining the PAIN POINT this project solves.\n"
-            "   - Use the `problem_statement` from analysis as a starting point, but EXPAND it into a relatable story.\n"
-            "   - Use bullet points to list specific frustrations the tool addresses.\n"
-            "   - This section must make the reader FEEL the pain before showing the solution.\n\n"
-            "4. **The Solution** (MANDATORY only for application, api, library, and cli project types. For poc, keep it to a single brief paragraph. SKIP this section entirely if the project type is learning or minimal):\n"
-            "   - Write 2-3 paragraphs explaining HOW this project solves the problem.\n"
-            "   - Use the `solution_narrative` from analysis as a starting point, but EXPAND it.\n"
-            "   - Highlight what makes it different from alternatives.\n\n"
-            "5. **Key Concepts** (ONLY for application/api/library project types):\n"
-            "   - Define 3-5 domain-specific terms, design patterns, or core abstractions used in the project.\n"
-            "   - Use a small markdown table: | Term | Definition |\n"
-            "   - Pull real names from the codebase: class names, protocol names, pipeline stage names.\n"
-            "   - SKIP this section for cli, minimal, learning, poc project types.\n\n"
-            "6. **How It Works** (ONLY if included in the documentation plan):\n"
-            "   a) **Architecture Diagram**:\n"
-            "      *** CRITICAL — READ CAREFULLY ***\n"
-            "      - Check the user prompt for 'Visual assets already generated'. If `architecture` key is non-empty, "
-            "that SVG already exists. Reference it with: `![Architecture](assets/readme/architecture.svg)` "
-            "and DO NOT generate ANY Mermaid block. Generating a second diagram when an SVG exists is FORBIDDEN.\n"
-            "      - Only generate a Mermaid diagram when `architecture` is empty/missing in visual_assets.\n"
-            "      - When generating Mermaid, use ONLY this exact syntax:\n"
-            "      ```mermaid\n"
-            "      flowchart TD\n"
-            "          A[\"ComponentName\"] --> B[\"ComponentName\"]\n"
-            "          B --> C{\"DecisionPoint\"}\n"
-            "          C -->|yes| D[\"Output\"]\n"
-            "          C -->|no| E[\"AltOutput\"]\n"
-            "      ```\n"
-            "      STRICT MERMAID RULES — violations will cause render failures:\n"
-            "      - ALWAYS use `flowchart TD` — NEVER `graph TD` or `graph LR`.\n"
-            "      - Node IDs must be single alphanumeric words: A, B, ReaderAgent, CLI (NO spaces, NO slashes).\n"
-            "      - Node labels MUST always be quoted strings: A[\"My Label\"] — NEVER A[My Label].\n"
-            "      - Decision diamonds: C{\"Decision?\"} — NEVER C(Decision).\n"
-            "      - NEVER put parentheses inside label strings. Write 'Reader Agent' not 'Reader (Agent)'.\n"
-            "      - Maximum 6 nodes and 5 arrows. Show only the user-critical path.\n"
-            "      - Never show utility files, helpers, or every dependency merely because they exist.\n\n"
-            "   b) **How It Works — Step-by-Step**:\n"
-            "      After the diagram, write a numbered walkthrough:\n"
-            "      1. **Step N — Name**: What triggers or initiates this step (use real file/function names).\n"
-            "      Each step must reference ACTUAL component names, not generic ones like 'the system'.\n"
-            "      Minimum 3 steps, maximum 7.\n\n"
-            "   c) **Component Table**: Include only when it adds information not visible in the diagram.\n"
-            "      Limit to 3-5 user-meaningful components and use: Component | Role | Input | Output.\n\n"
-            "7. **Features**: Create a clean feature list:\n"
-            "   - A bold feature name as a sub-heading (### Feature Name)\n"
-            "   - A 2-3 sentence description explaining what it does and why it matters\n"
-            "   - Group related features logically using H3 headers\n"
-            "   - ONLY include features actually found in the codebase\n\n"
-            "8. **Installation**: Concrete, numbered, copy-pasteable installation steps.\n"
-            "   - Use the `installation_commands` from analysis data.\n"
-            "   - Wrap each command in a ```shell code block.\n"
-            "   - If installation_commands is empty, infer from requirements.txt / package.json / Cargo.toml etc.\n\n"
-            "9. **Quick Start / Usage**: Show the fastest path to a working result.\n"
-            "   - The very first example must be under 3 commands.\n"
-            "   - Use the `cli_commands` from analysis data if available.\n"
-            "   - Show expected output in a code block where possible.\n\n"
-            "10. **Configuration & Parameters**: Comprehensive setup docs.\n"
-            "    - Environment variables table: | Variable | Description | Required | Default |\n"
-            "    - CLI flags table if applicable: | Flag | Short | Description | Default |\n"
-            "    - Use collapsible `<details>` blocks for verbose tables.\n\n"
-            "11. **API Reference** (ONLY if api_endpoints exist and are non-empty):\n"
-            "    - Document each endpoint with HTTP method, path, and description.\n"
-            "    - Include a curl example for the most important endpoint.\n\n"
-            "12. **Data Models** (ONLY if data_models is non-empty):\n"
-            "    - Present each model as a small table: | Field | Type | Description |\n"
-            "    - Use real field names from the analysis data.\n\n"
-            "13. **Repository Structure**: The scanned directory tree with brief annotations:\n"
-            "    - Use a code block for the tree.\n"
-            "    - Add inline comments (# description) for key files/directories.\n\n"
-            "14. **Contributing & License**: Clean links to CONTRIBUTING.md and LICENSE if they exist.\n"
-            "    - If test_coverage data is available, mention the test command in this section.\n\n"
+            "OTHERWISE, write the complete README markdown file using the following **Layout Structure** (generate ONLY the sections listed below):\n\n"
+            f"{layout_text}\n\n"
             "Return only the raw markdown content without any wrapper code fences.\n\n"
             "CRITICAL QUALITY RULE — READ CAREFULLY:\n"
             "- You MUST NOT write any code/programs (like a calculator or solver) — you are strictly compiling a project README.\n"
             "- Mermaid diagram syntax rules are absolute: use ONLY `flowchart TD` (NOT `graph TD`), node labels must be quoted strings A[\"Label\"] (NEVER unquoted A[Label] or A(Label)), and node IDs must be single alphanumeric words.\n"
-            "- If an architecture SVG is already listed in visual assets, reference it and DO NOT generate any Mermaid diagram.\n"
-            "- Keep all facts strict and derived from codebase scan results; do not invent files, endpoints, or features."
+            "- For the architecture section, you MUST generate a native Mermaid.js flowchart TD diagram inside a markdown code block showing the connections and data flows. Use ONLY quoted labels like A[\"Label\"] to prevent syntax errors.\n"
+            "- Keep all facts strict and derived from codebase scan results; do not invent files, endpoints, or features.\n"
+            "- Preserving gratitude: If the existing README (provided in the user prompt) has any acknowledgements, thanks, or 'Thank You' sections at the bottom, carry them forward to the end of the contributing_license section.\n"
+            "- If a 'Check Out the Demo' section is supplied in the user prompt (when the project is visual but has no real assets), include it VERBATIM. Do not paraphrase or reformat it — it is a curated placeholder for the project owner to fill in later."
         )
+
+        # Differentiation and visual asset context
+        differentiators = analysis.get("differentiators") or []
+        differentiators_text = "\n".join(f"- {d}" for d in differentiators) if differentiators else ""
+        ui_assets = analysis.get("ui_assets") or []
+        ui_assets_text = "\n".join(f"- {a}" for a in ui_assets) if ui_assets else ""
+
+        # installation_methods
+        install_methods = analysis.get("installation_methods") or []
+        install_methods_text = ""
+        for m in install_methods:
+            if not isinstance(m, dict):
+                continue
+            name = m.get("name", "")
+            command = m.get("command", "")
+            desc = m.get("description", "")
+            if command:
+                install_methods_text += f"- **{name}**: `{command}` ({desc})\n"
 
         user_prompt = (
             f"Here is the context of the codebase:\n"
@@ -425,6 +436,24 @@ class WriterAgent:
             f"Solution Narrative: {analysis.get('solution_narrative', 'Not specified')}\n"
             f"Component Flow Connections:\n{self._format_connections(analysis.get('connections', []))}\n\n"
         )
+
+        if differentiators_text:
+            user_prompt += (
+                "Concrete differentiators (use these for the Solution section):\n"
+                f"{differentiators_text}\n\n"
+            )
+
+        if ui_assets_text:
+            user_prompt += (
+                "Visual assets available in the repo (use these paths for hero/demo if appropriate):\n"
+                f"{ui_assets_text}\n\n"
+            )
+
+        if install_methods_text:
+            user_prompt += (
+                "Detected installation methods (use these in the Installation section):\n"
+                f"{install_methods_text}\n\n"
+            )
 
         if arch_layers_context:
             user_prompt += f"Architecture Layers (use these for the Mermaid diagram and Component Table):\n{arch_layers_context}\n"
@@ -464,20 +493,34 @@ class WriterAgent:
         if scan_results.get("existing_readme"):
             user_prompt += f"\nHere is the existing README content for reference:\n{scan_results.get('existing_readme')}\n"
 
-        readme_markdown = self.llm_client.generate(system_prompt, user_prompt)
-
-        # Post-process: strip any Mermaid blocks if an architecture SVG was already generated.
-        # The LLM sometimes generates both despite instructions; the SVG is always preferred.
-        if visual_assets and visual_assets.get("architecture"):
-            readme_markdown = re.sub(
-                r'```mermaid\s*\n.*?\n```',
-                f'![Architecture flow](assets/readme/architecture.svg)',
-                readme_markdown,
-                flags=re.DOTALL
+        # Demo placeholder: tell the LLM to include a "Check Out the Demo" section
+        # when the project is visual but has no real assets to embed.
+        demo_placeholder_text = ""
+        if self._should_include_demo_placeholder(analysis):
+            demo_placeholder_text = self._get_demo_placeholder_section()
+            user_prompt += (
+                "\nVISUAL PROJECT — NO REAL ASSETS DETECTED:\n"
+                "The project appears to have a visual interface but no real images, GIFs, or "
+                "videos are available in the repository. Include a 'Check Out the Demo' section "
+                "in the README using the exact text below verbatim. This reserves the spot for "
+                "the project owner to drop in real visuals later.\n\n"
+                "=== DEMO SECTION TO INSERT ===\n"
+                f"{demo_placeholder_text}\n"
+                "=== END DEMO SECTION ===\n"
             )
 
-        if visual_intro and "assets/readme/brand-light.svg" not in readme_markdown:
-            return f"{visual_intro}\n\n{readme_markdown.lstrip()}"
+        readme_markdown = self.llm_client.generate(system_prompt, user_prompt)
+
+        # Keep Mermaid blocks natively as requested by user. We no longer replace them with SVGs.
+
+        if include_header_banner and visual_intro and "assets/readme/brand-light.svg" not in readme_markdown:
+            readme_markdown = f"{visual_intro}\n\n{readme_markdown.lstrip()}"
+
+        # If the LLM didn't include the demo section verbatim (some models paraphrase),
+        # append it ourselves so the placeholder is always present.
+        if demo_placeholder_text and "Check Out the Demo" not in readme_markdown:
+            readme_markdown = readme_markdown.rstrip() + "\n\n" + demo_placeholder_text
+
         return readme_markdown
 
     def _format_connections(self, connections):
@@ -493,3 +536,169 @@ class WriterAgent:
             layer_tag = f" [{layer}]" if layer else ""
             lines.append(f"- {from_node} → {to_node}: {relationship}{layer_tag}")
         return "\n".join(lines)
+
+    def _get_style_instruction(self, style: str) -> str:
+        """Return the system-prompt instruction block for a given README style.
+
+        Each style was modeled after a category of real top-rated GitHub projects:
+          - reference: Axios, ripgrep, FastAPI, gh CLI (libraries, CLIs, APIs)
+          - narrative: Supabase, AppFlowy, Plausible, Moby (products, frameworks)
+          - tutorial: build-your-own-x, freeCodeCamp (learning resources)
+          - showcase: AppFlowy, Phaser, httpie (UI products with visual demos)
+          - minimal: jq, Three.js, tldr (small utilities)
+        """
+        instructions = {
+            "reference": (
+                "STYLE: REFERENCE (USER MANUAL)\n"
+                "You are writing a USER MANUAL, not a marketing page. The reader is technical. Trust them.\n"
+                "REQUIREMENTS:\n"
+                "- Lead with a one-line tagline and 3-5 shields.io badges (license, version, build, downloads).\n"
+                "- The FIRST code block must be a working install command. Do not bury it.\n"
+                "- Quick Start must show 5-15 lines of runnable code WITH expected output.\n"
+                "- Include an exhaustive API/Command Reference section — every public symbol, not a curated subset.\n"
+                "- Use tables for configuration options (env vars, flags, settings).\n"
+                "- Each Feature bullet must include WHY it matters, not just WHAT it is.\n"
+                "- OMIT 'The Problem' and 'The Solution' sections. The reader knows what a CLI tool is.\n"
+                "- Use <details> blocks for optional deep dives.\n"
+                "ANTI-PATTERNS: 'easy to use', 'simple', 'powerful', 'flexible' without a concrete example. Marketing prose. Long preambles."
+            ),
+            "narrative": (
+                "STYLE: NARRATIVE (STORY)\n"
+                "You are telling a STORY. Sell the project to a developer who is considering whether to use it.\n"
+                "REQUIREMENTS:\n"
+                "- Lead with: Logo → Tagline → 3-4 badges → 1-line mission.\n"
+                "- 'The Problem': 2-3 sentences with a CONCRETE pain point. Not 'documentation is hard' but the specific frustration this tool eliminates.\n"
+                "- 'The Solution': 3-5 sentences with CONCRETE differentiators. Use the `differentiators` field from analysis if available. Examples: 'Single static binary', 'Zero dependencies', 'OpenAPI-compatible'.\n"
+                "- 'How It Works': A Mermaid flowchart TD diagram using only nodes from the actual `connections` data. Quote labels: A[\"Label\"]. If <3 connections, SKIP the diagram and use a feature grid instead.\n"
+                "- Features: 6-10 bullets, EACH with a concrete example or a link to docs.\n"
+                "- Quick Start: 3-5 lines of working code.\n"
+                "- OMIT 'The Problem' if `problem_statement` is empty or generic — start with 'About' instead.\n"
+                "ANTI-PATTERNS: Generic Problem sections. ASCII art placeholders. Fluffy 'automates X' filler. Repository Structure that just lists files without explaining them."
+            ),
+            "tutorial": (
+                "STYLE: TUTORIAL (LEARNING PATH)\n"
+                "You are TEACHING. The reader is a learner. Make the path explicit.\n"
+                "REQUIREMENTS:\n"
+                "- Lead with a mission statement and 1-2 hero images if available (use `ui_assets`).\n"
+                "- 'What You'll Learn': 3-5 specific outcomes, each one concrete (e.g., 'Build a REST API with FastAPI', not 'Learn FastAPI').\n"
+                "- 'Prerequisites': what the reader needs before starting (tools, prior knowledge).\n"
+                "- Table of Contents: a categorized list of resources or sub-tutorials, each with a 1-sentence description.\n"
+                "- 'Getting Started': first 5-minute exercise with copy-pasteable commands.\n"
+                "- 'Resources': external links to docs, books, courses — each with a description.\n"
+                "OMIT: Installation (tutorial repos are not installed), API Reference, Configuration.\n"
+                "ANTI-PATTERNS: Long preambles. Generic 'this will teach you X' claims. Bare URLs without descriptions."
+            ),
+            "showcase": (
+                "STYLE: SHOWCASE (VISUAL PRODUCT PAGE)\n"
+                "You are presenting a PRODUCT. Show, don't tell. Visuals are mandatory.\n"
+                "REQUIREMENTS:\n"
+                "- Lead with: Logo → Tagline → 1-2 HERO IMAGES (use paths from `ui_assets` if available; otherwise describe the visual).\n"
+                "- 'Try It Now': 1-3 commands that get the user running in <5 minutes.\n"
+                "- Features: 6-10 items, each referencing a visual or screenshot path. If no image is available, describe the screen concretely.\n"
+                "- 'Use Cases': 2-3 mini-stories of who uses this and why. Concrete, not abstract.\n"
+                "- 'Built With': a one-line tech stack summary (use `tech_stack`).\n"
+                "- 'Community': Discord/forum link if known.\n"
+                "OMIT: Long problem/solution narratives, exhaustive API references.\n"
+                "ANTI-PATTERNS: Walls of text without visuals. Generic feature lists. Missing hero image references."
+            ),
+            "minimal": (
+                "STYLE: MINIMAL (TRAILER)\n"
+                "You are a TRAILER. The README points to real docs elsewhere. Be brief.\n"
+                "REQUIREMENTS:\n"
+                "- Maximum length: 60 lines. If you exceed it, cut.\n"
+                "- Lead with: Title → Tagline → Install command → Usage example.\n"
+                "- 3-5 lines for the usage example.\n"
+                "- If the project has external docs, defer to them with a single link.\n"
+                "- OMIT: Features, Architecture, Configuration, Problem/Solution, Use Cases.\n"
+                "ANTI-PATTERNS: Long preambles. Marketing prose. Multi-section layouts."
+            ),
+        }
+        return instructions.get(style, instructions["narrative"])
+
+    def _get_style_guardrails(self, style: str) -> str:
+        """Return hard rules the LLM must follow for a given style."""
+        guardrails = {
+            "reference": (
+                "HARD RULES:\n"
+                "- The first code block in the README must be a working install command.\n"
+                "- The Quick Start section MUST include expected output, not just code.\n"
+                "- Never use 'easy to use', 'simple', 'powerful', or 'flexible' without a concrete example.\n"
+                "- The API/Command Reference section must enumerate every public symbol/flag, not a curated subset."
+            ),
+            "narrative": (
+                "HARD RULES:\n"
+                "- If `problem_statement` is empty or generic, OMIT 'The Problem' section and start with 'About'.\n"
+                "- The 'How It Works' diagram must use ONLY nodes from the actual connections/architecture data. Quote all labels.\n"
+                "- Every feature bullet must include either: a code snippet, a link to docs, or a specific outcome.\n"
+                "- Every 'Solution' claim must reference a concrete technical choice from `differentiators`."
+            ),
+            "tutorial": (
+                "HARD RULES:\n"
+                "- Never include an Installation section. Tutorial repos don't get installed.\n"
+                "- The Table of Contents must be the centerpiece, organized by category.\n"
+                "- Every link must have a 1-sentence description (avoid bare URLs).\n"
+                "- 'What You'll Learn' must list concrete outcomes, not abstract goals."
+            ),
+            "showcase": (
+                "HARD RULES:\n"
+                "- The first image after the title must be a hero screenshot/GIF path (from `ui_assets`) or a 'see it in action' description.\n"
+                "- The 'Try It Now' section must run in <5 minutes on a fresh machine.\n"
+                "- Each feature must have a visual reference (image path or concrete description).\n"
+                "- 'Use Cases' must include 2-3 concrete user stories."
+            ),
+            "minimal": (
+                "HARD RULES:\n"
+                "- Hard cap: 60 lines.\n"
+                "- Never include a Features section.\n"
+                "- Never include an Architecture section.\n"
+                "- If the project has external docs, defer to them with a single link."
+            ),
+        }
+        return guardrails.get(style, guardrails["narrative"])
+
+    def _should_include_demo_placeholder(self, analysis: dict) -> bool:
+        """Decide whether the README should include a 'Check Out the Demo' placeholder.
+
+        Returns True only when:
+          - The project is a visual project (has_visual_interface OR style is showcase/narrative)
+          - AND there are NO real image/video assets in the repo
+        """
+        if not analysis:
+            return False
+        has_visual = bool(analysis.get("has_visual_interface"))
+        recommended = analysis.get("recommended_style", "")
+        style_visual = recommended in {"showcase", "narrative", "demo"}
+        if not (has_visual or style_visual):
+            return False
+        # If the project already has real assets, do not add a placeholder.
+        hero_assets = analysis.get("hero_assets") or []
+        ui_assets = analysis.get("ui_assets") or []
+        if hero_assets or ui_assets:
+            return False
+        return True
+
+    def _get_demo_placeholder_section(self) -> str:
+        """Return a friendly 'Check Out the Demo' placeholder section.
+
+        This section reserves a spot in the README for the project owner to drop
+        in a screenshot, GIF, or video link. It is honest about the gap, gives
+        clear instructions, and is visually distinctive so a maintainer notices it.
+        """
+        return (
+            "## 🎬 Check Out the Demo\n\n"
+            "> 📸 **A live demo is coming soon!**\n>\n"
+            "> This space will soon be filled with screenshots, GIFs, or a video walkthrough.\n"
+            "> Thank you for waiting while we put the finishing touches on it.\n>\n"
+            "> **Want to help?** Drop a screenshot, a quick GIF, or a link to a Loom/YouTube "
+            "video right under this callout, and open a PR — the maintainers (and visitors) "
+            "will thank you for it.\n\n"
+            "**How to contribute the demo:**\n"
+            "\n"
+            "1. Capture a short screen recording or take a few screenshots of the project in action.\n"
+            "2. Save the file under `assets/` or `docs/` in the repository (e.g. `assets/demo.gif`).\n"
+            "3. Replace the callout above with one of the following:\n"
+            "    - Image: `![Demo screenshot](assets/demo.png)`\n"
+            "    - GIF: `![Demo](assets/demo.gif)`\n"
+            "    - Video: `[▶ Watch the demo](https://your-video-link-here)`\n"
+            "4. Open a pull request.\n"
+        )

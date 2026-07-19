@@ -26,34 +26,26 @@ function _saveProviderPrefs() {
     } catch (e) { /* private browsing — ignore */ }
 }
 
-function _restoreProviderPrefs() {
+async function _restoreProviderPrefs() {
     try {
         const provider = localStorage.getItem(LS_PROVIDER);
-        const model    = localStorage.getItem(LS_MODEL);
+        const savedModel = localStorage.getItem(LS_MODEL);
         const host     = localStorage.getItem(LS_HOST);
+
+        // Restore host first so fetchModels() (triggered by provider change) uses the right URL
+        if (host) {
+            const hi = document.getElementById('ollama-host-input');
+            if (hi) hi.value = host;
+        }
 
         if (provider) {
             const sel = document.getElementById('provider-select');
             if (sel) {
                 sel.value = provider;
-                handleProviderChange();
+                // Temporarily store the model to restore on window._pendingModelRestore
+                window._pendingModelRestore = savedModel;
+                await handleProviderChange();
             }
-        }
-        if (model) {
-            const ms = document.getElementById('model-select');
-            if (ms) {
-                if (!ms.querySelector(`option[value="${model}"]`)) {
-                    const opt = document.createElement('option');
-                    opt.value = model;
-                    opt.textContent = model;
-                    ms.appendChild(opt);
-                }
-                ms.value = model;
-            }
-        }
-        if (host) {
-            const hi = document.getElementById('ollama-host-input');
-            if (hi) hi.value = host;
         }
     } catch (e) { /* ignore */ }
 }
@@ -90,8 +82,38 @@ mermaid.initialize({
     }
 });
 
-// Restore saved provider prefs and init provider UI once DOM is ready
-// (deferred to the single DOMContentLoaded handler at the bottom of this file)
+// On page load: restore saved prefs first (so host URL is in place),
+// then init the provider UI. This prevents fetchModels() from hitting
+// the wrong Ollama host on first load.
+window.addEventListener('DOMContentLoaded', async () => {
+    await _restoreProviderPrefs();
+    // If no saved provider, initialise a clean provider UI state
+    const savedProvider = localStorage.getItem(LS_PROVIDER);
+    if (!savedProvider) {
+        handleProviderChange();
+    }
+
+    // Wire up the repo path input to enable/disable the Analyze button
+    const repoInput = document.getElementById('repo-path-input');
+    if (repoInput) {
+        const updateAnalyzeState = () => _updateAnalyzeButtonState();
+        repoInput.addEventListener('input', updateAnalyzeState);
+        // Initial state
+        _updateAnalyzeButtonState();
+    }
+});
+
+// ENABLE / DISABLE the Analyze button based on whether the user has typed a path
+function _updateAnalyzeButtonState() {
+    const repoInput = document.getElementById('repo-path-input');
+    const analyzeBtn = document.querySelector('button[onclick="runAnalysis()"]');
+    if (!repoInput || !analyzeBtn) return;
+    const hasValue = (repoInput.value || '').trim().length > 0;
+    analyzeBtn.disabled = !hasValue;
+    analyzeBtn.style.opacity = hasValue ? '1' : '0.5';
+    analyzeBtn.style.cursor = hasValue ? 'pointer' : 'not-allowed';
+    analyzeBtn.title = hasValue ? '' : 'Please enter a repository link or local path first';
+}
 
 // STEP NAVIGATION
 function goToStep(step) {
@@ -124,7 +146,7 @@ function goToStep(step) {
 }
 
 // HANDLE PROVIDER SELECTION INPUTS
-function handleProviderChange() {
+async function handleProviderChange() {
     const provider = document.getElementById('provider-select').value;
     const apiKeyGroup = document.getElementById('api-key-group');
     const modelGroup = document.getElementById('model-group');
@@ -147,15 +169,21 @@ function handleProviderChange() {
     if (provider === 'ollama') {
         modelGroup.style.display = 'flex';
         ollamaGroup.style.display = 'flex';
+        return await fetchModels();
     } else if (provider === 'opencode') {
         opencodeGroup.style.display = 'flex';
         modelGroup.style.display = 'flex';
-        apiKeyGroup.style.display = 'flex'; // API key needed/supported for OpenCode
-    } else if (provider !== 'mock') {
         apiKeyGroup.style.display = 'flex';
+        return await fetchModels();
+    } else if (provider === 'mock') {
+        // Mock needs no key and has no real model list — skip fetch
+        modelGroup.style.display = 'none';
+    } else if (provider) {
+        // Cloud providers: show API key input and auto-fetch to check env keys
+        apiKeyGroup.style.display = 'flex';
+        modelGroup.style.display = 'flex';
+        return await fetchModels();
     }
-
-    fetchModels();
 }
 
 async function fetchModels() {
@@ -174,21 +202,34 @@ async function fetchModels() {
         baseUrl = document.getElementById('opencode-host-input')?.value.trim() || 'http://127.0.0.1:4096';
     }
 
+    // Cloud providers: don't fetch if no key has been entered yet
+    if (provider !== 'ollama' && provider !== 'opencode' && provider !== 'mock' && !apiKey) {
+        modelSelect.innerHTML = '<option value="">Enter API key to load models</option>';
+        return;
+    }
+
     modelGroup.style.display = 'flex';
     modelLoading.style.display = 'inline-block';
     modelSelect.innerHTML = '<option value="">Loading...</option>';
+
+    // AbortController gives us a hard timeout so a dead Ollama server
+    // doesn't leave the spinner running forever.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     try {
         const response = await fetch('/api/models', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ provider, api_key: apiKey, base_url: baseUrl })
+            body: JSON.stringify({ provider, api_key: apiKey, base_url: baseUrl }),
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
         const data = await response.json();
 
         modelLoading.style.display = 'none';
 
-        if (data.success && data.models.length > 0) {
+        if (data.success && data.models && data.models.length > 0) {
             modelSelect.innerHTML = '<option value="">Select a model...</option>';
             data.models.forEach(model => {
                 const option = document.createElement('option');
@@ -196,41 +237,81 @@ async function fetchModels() {
                 option.textContent = model;
                 modelSelect.appendChild(option);
             });
+            // Restore previously saved model selection if available
+            if (window._pendingModelRestore) {
+                const saved = window._pendingModelRestore;
+                if (modelSelect.querySelector(`option[value="${saved}"]`)) {
+                    modelSelect.value = saved;
+                }
+                window._pendingModelRestore = null;
+            }
             // Succeeded with empty input key -> server env key is available
             if (!apiKey && apiKeyInput) {
                 apiKeyInput.value = '••••••••';
                 apiKeyInput.readOnly = true;
                 apiKeyInput.style.opacity = '0.7';
                 apiKeyInput.title = 'Using API Key from environment. Click to change.';
-                
-                // Clear and make editable on click
                 apiKeyInput.onclick = function() {
                     if (apiKeyInput.readOnly) {
                         apiKeyInput.value = '';
                         apiKeyInput.readOnly = false;
                         apiKeyInput.style.opacity = '1.0';
                         apiKeyInput.placeholder = 'Enter your provider API Key';
-                        apiKeyInput.onclick = null; // Remove handler
+                        apiKeyInput.onclick = null;
                     }
                 };
             }
+        } else if (data.models && data.models.length === 0 && provider === 'ollama') {
+            // Ollama is reachable but has no models pulled
+            modelSelect.innerHTML = '<option value="">No local models found</option>';
+            showNotification(
+                'Ollama is running but has no models pulled. Run e.g. "ollama pull llama3.2" in your terminal, then click Fetch Models.',
+                'info'
+            );
         } else if (data.error) {
-            modelSelect.innerHTML = '<option value="">API Key Required</option>';
-            if (apiKeyInput) {
-                apiKeyInput.value = '';
-                apiKeyInput.readOnly = false;
-                apiKeyInput.style.opacity = '1.0';
-                apiKeyInput.placeholder = 'Enter your provider API Key';
-            }
-            if (apiKey && apiKey !== '••••••••') {
-                showNotification('Failed to fetch models: ' + data.error, 'error');
+            if (provider === 'ollama') {
+                modelSelect.innerHTML = '<option value="">Ollama unreachable</option>';
+                showNotification(
+                    `Could not reach Ollama at ${baseUrl}. Make sure Ollama is running ("ollama serve") and try again.`,
+                    'error'
+                );
+            } else if (provider === 'opencode') {
+                modelSelect.innerHTML = '<option value="">OpenCode unreachable</option>';
+                showNotification(
+                    `Could not reach OpenCode at ${baseUrl}. Make sure OpenCode is running and try again.`,
+                    'error'
+                );
+            } else {
+                modelSelect.innerHTML = '<option value="">API Key Required</option>';
+                if (apiKeyInput) {
+                    apiKeyInput.value = '';
+                    apiKeyInput.readOnly = false;
+                    apiKeyInput.style.opacity = '1.0';
+                    apiKeyInput.placeholder = 'Enter your provider API Key';
+                }
+                if (apiKey && apiKey !== '••••••••') {
+                    showNotification('Failed to fetch models: ' + data.error, 'error');
+                }
             }
         } else {
             modelSelect.innerHTML = '<option value="">No models found</option>';
         }
     } catch (err) {
+        clearTimeout(timeoutId);
         modelLoading.style.display = 'none';
-        modelSelect.innerHTML = '<option value="">Error loading models</option>';
+        if (err.name === 'AbortError') {
+            modelSelect.innerHTML = '<option value="">Server not reachable</option>';
+            if (provider === 'ollama') {
+                showNotification(
+                    `Ollama server timed out at ${baseUrl}. Make sure Ollama is running ("ollama serve") and the host URL is correct.`,
+                    'error'
+                );
+            } else {
+                showNotification('Model fetch timed out. Check your connection.', 'error');
+            }
+        } else {
+            modelSelect.innerHTML = '<option value="">Error loading models</option>';
+        }
     }
 }
 
@@ -240,7 +321,8 @@ function validateLLMConfig() {
     const apiKeyInput = document.getElementById('api-key-input');
     const apiKey = apiKeyInput ? apiKeyInput.value.trim() : '';
     const modelSelect = document.getElementById('model-select');
-    const model = provider === 'ollama' ? 'llama3' : (provider === 'opencode' ? 'claude-3-5-sonnet-20241022' : (modelSelect.value || ''));
+    // Always read the actual dropdown value — never hardcode a model name
+    const model = modelSelect.value || '';
     const ollamaHost = document.getElementById('ollama-host-input').value.trim();
     const opencodeHost = document.getElementById('opencode-host-input').value.trim();
 
@@ -250,8 +332,15 @@ function validateLLMConfig() {
         return;
     }
 
-    if (!model && provider !== 'ollama' && provider !== 'opencode') {
-        showNotification('Please select or enter a model.', 'error');
+    // For Ollama/OpenCode, a model must be selected from the fetched list
+    if (!model && provider !== 'mock') {
+        if (provider === 'ollama') {
+            showNotification('Please select a local Ollama model. Use "Fetch Models" to load your pulled models.', 'error');
+        } else if (provider === 'opencode') {
+            showNotification('Please select an OpenCode model. Use "Fetch Models" to load available models.', 'error');
+        } else {
+            showNotification('Please select a model.', 'error');
+        }
         return;
     }
 
@@ -271,7 +360,16 @@ function validateLLMConfig() {
 async function runAnalysis() {
     const repoPath = document.getElementById('repo-path-input').value.trim();
     if (!repoPath) {
-        showNotification('Please specify a repository link or local directory path.', 'error');
+        showNotification('Please enter a GitHub URL or a local directory path before analyzing.', 'error');
+        const input = document.getElementById('repo-path-input');
+        if (input) input.focus();
+        return;
+    }
+    // Reject trivial placeholders like a single dot
+    if (repoPath === '.' || repoPath === '/' || repoPath === './' || repoPath === '../') {
+        showNotification('Please enter a real GitHub URL or a specific directory path (not just "." or "/").', 'error');
+        const input = document.getElementById('repo-path-input');
+        if (input) input.focus();
         return;
     }
 
@@ -365,6 +463,30 @@ function populateDashboard(score, analysis) {
     if (projectTypeBadge) projectTypeBadge.textContent = analysis.project_type || 'Unknown';
     if (maturityBadge) maturityBadge.textContent = analysis.project_maturity || 'Unknown';
 
+    // Display the auto-detected README style so the user can see what was chosen
+    const styleAutoInfo = document.getElementById('style-auto-info');
+    const styleAutoValue = document.getElementById('style-auto-value');
+    const recommended = analysis.recommended_style;
+    if (recommended && styleAutoInfo && styleAutoValue) {
+        const styleDescriptions = {
+            reference: 'Reference — User manual (libraries, CLIs, APIs)',
+            narrative: 'Narrative — Story-driven (products, frameworks)',
+            tutorial: 'Tutorial — Learning path (tutorials, awesome-lists)',
+            showcase: 'Showcase — Visual product page (UI apps)',
+            minimal: 'Minimal — Trailer (small utilities)',
+        };
+        styleAutoValue.textContent = ' ' + (styleDescriptions[recommended] || recommended);
+        // Only show the auto-detected badge when the user has selected "Auto-detect"
+        const styleSelect = document.getElementById('brief-style-select');
+        if (styleSelect && (styleSelect.value === '' || styleSelect.value === recommended)) {
+            styleAutoInfo.style.display = 'block';
+        } else {
+            styleAutoInfo.style.display = 'none';
+        }
+    } else if (styleAutoInfo) {
+        styleAutoInfo.style.display = 'none';
+    }
+
     // 1. Score gauge — animate counter and set conic gradient
     const scoreText = document.getElementById('score-text');
     const scoreCircle = document.querySelector('.score-circle');
@@ -431,7 +553,7 @@ function populateDashboard(score, analysis) {
         const improvements = analysis.improvements || [];
 
         if (improvements.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">✅ No improvement gaps identified. Your README is in top shape!</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">✅ No gaps identified. Your README is in great shape!</td></tr>`;
         } else {
             improvements.forEach(imp => {
                 const tr = document.createElement('tr');
@@ -444,6 +566,20 @@ function populateDashboard(score, analysis) {
                 `;
                 tbody.appendChild(tr);
             });
+        }
+    }
+
+    // Update the "X gaps found" pill next to the score
+    const gapsPill = document.getElementById('gaps-pill');
+    const gapsPillCount = document.getElementById('gaps-pill-count');
+    if (gapsPill && gapsPillCount) {
+        const count = (analysis.improvements || []).length;
+        gapsPillCount.textContent = count;
+        if (count === 0) {
+            gapsPill.textContent = 'No gaps — looking good';
+            gapsPill.classList.add('gaps-pill-clean');
+        } else {
+            gapsPill.classList.remove('gaps-pill-clean');
         }
     }
 
@@ -460,7 +596,10 @@ async function checkDocumentationDrift() {
     container.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.9rem;"><span class="spinner-small"></span> Checking documentation drift...</div>';
 
     try {
-        const repoPath = document.getElementById('repo-path-input').value.trim() || '.';
+        // Use the path from the saved scan context if available, fall back to input
+        const repoPath = (scanContext && scanContext.path)
+            ? scanContext.path
+            : (document.getElementById('repo-path-input')?.value.trim() || '');
         const response = await fetch('/api/drift', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -586,7 +725,10 @@ function loadDesignBrief() {
     };
 
     const docPlan = docPlanContext || { sections: ['title', 'overview'] };
-    Object.entries(sectionDescriptions).forEach(([sec, desc]) => {
+    const available = docPlan.available_sections || Object.keys(sectionDescriptions);
+    available.forEach(sec => {
+        const desc = sectionDescriptions[sec];
+        if (!desc) return;
         const checked = docPlan.sections.includes(sec) ? 'checked' : '';
         const label = document.createElement('label');
         label.className = 'checkbox-label';
@@ -622,15 +764,17 @@ function triggerDraftGeneration() {
     // Collect pack strategy and CDN asset options
     const visualPack = document.getElementById('brief-visual-pack').value;
     const noExternalAssets = document.getElementById('brief-no-external-assets').checked;
+    const includeHeaderBanner = document.getElementById('brief-include-header-banner').checked;
 
-    // Read style from the Brief panel selector (Step 5)
+    // Read style from the Brief panel selector (Step 5); empty = auto-detect
     const styleSelect = document.getElementById('brief-style-select');
-    const chosenStyle = styleSelect ? styleSelect.value : 'visual_rich';
+    const chosenStyle = styleSelect ? styleSelect.value : '';
 
     const briefOptions = {
         sections: selectedSections,
         visual_pack: visualPack,
         no_external_assets: noExternalAssets,
+        include_header_banner: includeHeaderBanner,
         style: chosenStyle
     };
 
@@ -648,10 +792,20 @@ async function startGeneration(isInstant, compiledAnswers = '', briefOptions = n
     const loaderStatus = document.getElementById(isBrief ? 'brief-loader-status' : 'dashboard-loader-status');
     const actionsBlock = document.getElementById(isBrief ? 'brief-actions' : 'dashboard-actions');
 
-    // Read style: prefer briefOptions.style, then brief-style-select, then fallback
-    const styleToUse = (briefOptions && briefOptions.style)
-        ? briefOptions.style
-        : (document.getElementById('brief-style-select')?.value || 'visual_rich');
+    // Read style: prefer briefOptions.style, then brief-style-select, then analyzer-recommended, then narrative
+    let styleToUse;
+    if (briefOptions && briefOptions.style) {
+        styleToUse = briefOptions.style;
+    } else {
+        const styleSelectValue = document.getElementById('brief-style-select')?.value;
+        if (styleSelectValue) {
+            styleToUse = styleSelectValue;
+        } else if (analysisContext && analysisContext.recommended_style) {
+            styleToUse = analysisContext.recommended_style;
+        } else {
+            styleToUse = 'narrative';
+        }
+    }
 
     // Display loader overlay
     if (loader) loader.style.display = 'flex';
@@ -1017,11 +1171,41 @@ function switchOutputTab(tabId) {
 // ACTION BUTTON EXPORTS
 function copyMarkdown() {
     const rawMarkdown = document.getElementById('raw-readme-text').value;
+    if (!rawMarkdown) {
+        showNotification('No README to copy. Generate one first.', 'error');
+        return;
+    }
     navigator.clipboard.writeText(rawMarkdown).then(() => {
-        showNotification('README markdown copied to clipboard successfully!', 'success');
+        showNotification('Markdown copied to clipboard.', 'success');
     }).catch(err => {
         showNotification('Failed to copy: ' + err, 'error');
     });
+}
+
+function downloadReadme() {
+    const rawMarkdown = document.getElementById('raw-readme-text').value;
+    if (!rawMarkdown) {
+        showNotification('No README to download. Generate one first.', 'error');
+        return;
+    }
+    const blob = new Blob([rawMarkdown], { type: 'text/markdown; charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'README.md';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showNotification('README.md downloaded.', 'success');
+}
+
+// TOGGLE EVIDENCE PANEL in step 5
+function toggleEvidence() {
+    const container = document.getElementById('brief-evidence-container');
+    if (!container) return;
+    const isHidden = container.style.display === 'none' || container.style.display === '';
+    container.style.display = isHidden ? 'block' : 'none';
 }
 
 // APP RESET
@@ -1029,20 +1213,14 @@ function resetApp() {
     scanContext = null;
     analysisContext = null;
     currentDraftId = '.readme_forge_draft';
-    document.getElementById('repo-path-input').value = '.';
+    document.getElementById('repo-path-input').value = '';
 
-    // Reset style selector to default
+    // Reset style selector to default (empty = auto-detect)
     const styleEl = document.getElementById('brief-style-select');
-    if (styleEl) styleEl.value = 'visual_rich';
+    if (styleEl) styleEl.value = '';
 
     goToStep(1);
 }
-
-// On page load
-window.addEventListener('DOMContentLoaded', () => {
-    handleProviderChange();
-    _restoreProviderPrefs();
-});
 
 // CUSTOM MINIMALIST TOAST NOTIFICATION
 function showNotification(message, type = 'info') {

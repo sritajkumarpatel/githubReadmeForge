@@ -41,8 +41,23 @@ The AnalyzerAgent classifies projects along two dimensions:
 ### LLM Integration
 
 - **Client**: `readme_forge/llm.py` — Unified interface supporting Gemini, OpenAI, Claude, Ollama, OpenCode
-- **Mock mode** is the default when no API keys are set. It returns pre-built demo content
 - All LLM system prompts live in the agent files (`writer.py`, `analyzer.py`), never in `llm.py`
+
+### README Style System (5 styles)
+
+The WriterAgent supports 5 README styles, each modeled after a category of real top-rated GitHub projects. Style is auto-detected from `project_type`; the user can override in the dashboard.
+
+| Style | Default for | Real-world model |
+|---|---|---|
+| `reference` | `library`, `cli`, `api` | Axios, ripgrep, FastAPI, gh CLI (user manuals) |
+| `narrative` | `application` | Supabase, AppFlowy, Plausible (story-driven) |
+| `tutorial` | `learning` | build-your-own-x, freeCodeCamp (learning path) |
+| `showcase` | `demo` | AppFlowy, Phaser, httpie (visual product page) |
+| `minimal` | `poc`, `minimal` | jq, Three.js, tldr (trailer for the docs) |
+
+The mapping lives in `readme_forge/agents/contracts.py:INTENT_README_STYLE`. The Writer enforces per-style guardrails in `WriterAgent._get_style_guardrails()`.
+
+Legacy style names (`visual_rich`, `minimalist`, `enterprise`) are auto-mapped to the new system for backward compatibility.
 
 ## Code Conventions
 
