@@ -55,8 +55,16 @@ Thumbs.db
 readme_forge_output/*
 !readme_forge_output/.gitkeep
 .readme_forge_draft*
+# Auto-generated assets go in assets/readme/ (ignored); user-provided demo
+# assets at the root of assets/ (e.g. demo.gif, screenshot.png) are intentional
+# and should be committed.
 assets/*
 !assets/.gitkeep
+!assets/demo.gif
+!assets/demo.mp4
+!assets/screenshot.png
+!assets/screenshot-light.png
+!assets/screenshot-dark.png
 showroom.html
 README_new.md
 
