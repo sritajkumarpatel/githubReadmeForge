@@ -1,8 +1,4 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/brand-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="assets/readme/brand-light.svg">
-  <img alt="githubReadmeForge Banner" src="assets/readme/brand-light.svg" width="100%">
-</picture>
+
 
 <div align="center">
 
@@ -23,10 +19,6 @@
 
 ## 🎬 See It In Action
 
-> **📸 Drop your demo assets into the `assets/` folder.**
->
-> We reserve this spot for a short screen recording and a few screenshots. Replace the lines below with your real files:
->
 > ```html
 > <p align="center">
 >   <img src="assets/demo.gif" alt="Demo" width="800">
@@ -36,18 +28,8 @@
 >   <a href="assets/demo.mp4"><img src="assets/screenshot.png" alt="Click to watch the demo video" width="800"></a>
 > </p>
 > ```
->
-> Or paste a YouTube/Loom link:
->
-> ```markdown
-> [![Watch the demo](assets/screenshot.png)](https://your-video-link-here)
-> ```
->
-> Once you commit those files, this section will light up automatically.
 
-<p align="center">
-  <em>↑ A live demo is coming soon. Drop a screenshot or video into <code>assets/</code> and open a PR.</em>
-</p>
+
 
 ---
 
